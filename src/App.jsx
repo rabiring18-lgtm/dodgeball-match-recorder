@@ -567,20 +567,18 @@ function WaitingScreen({
         <WaitingMemberList heading="後半メンバー" members={secondHalfMembers} />
       </div>
 
-      <section className="game-start-panel" aria-label="ゲーム開始操作">
-        <button className="game-start-button" type="button" onClick={onGameStart}>
-          ゲームスタート
-        </button>
-        {gameStartMessage && (
-          <p className="next-step-message">{gameStartMessage}</p>
-        )}
-      </section>
-
-      <div className="waiting-back-row">
+      <section className="waiting-action-row" aria-label="試合開始操作">
         <button className="secondary-button back-button" type="button" onClick={onBack}>
           設定に戻る
         </button>
-      </div>
+        <button className="game-start-button" type="button" onClick={onGameStart}>
+          ゲームスタート
+        </button>
+      </section>
+
+      {gameStartMessage && (
+        <p className="next-step-message waiting-message">{gameStartMessage}</p>
+      )}
     </main>
   )
 }
