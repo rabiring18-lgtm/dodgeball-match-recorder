@@ -1,24 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const PLAYER_COUNT = 12
+const MEMBER_LIMIT = 8
+const FIXED_MATCH_MINUTES = '5'
 const STORAGE_KEYS = {
   players: 'dodgeballMatchRecorder.players',
   matchSetup: 'dodgeballMatchRecorder.matchSetup',
   opponentHistory: 'dodgeballMatchRecorder.opponentHistory',
 }
-const PRESET_MINUTES = ['3', '5', '7']
 
 const createEmptyPlayers = () =>
   Array.from({ length: PLAYER_COUNT }, (_, index) => ({
     id: index,
-    number: '',
     name: '',
   }))
 
 const defaultMatchSetup = {
   opponentName: '',
-  matchMinutes: '5',
-  matchTimePreset: '5',
+  matchMinutes: FIXED_MATCH_MINUTES,
   possession: '',
   firstHalfMemberIds: [],
   secondHalfMemberIds: [],
@@ -46,29 +45,23 @@ function normalizePlayers(players) {
 
   return basePlayers.map((player, index) => ({
     ...player,
-    number: String(players[index]?.number ?? ''),
     name: String(players[index]?.name ?? ''),
   }))
 }
 
 function normalizeIdList(value) {
-  return Array.isArray(value) ? value.filter((id) => Number.isInteger(id)) : []
+  return Array.isArray(value)
+    ? value.filter((id) => Number.isInteger(id)).slice(0, MEMBER_LIMIT)
+    : []
 }
 
 function normalizeMatchSetup(value) {
   const storedSetup = value && typeof value === 'object' ? value : {}
-  const storedMinutes = String(
-    storedSetup.matchMinutes ?? defaultMatchSetup.matchMinutes,
-  )
-  const matchTimePreset = PRESET_MINUTES.includes(storedMinutes)
-    ? storedMinutes
-    : 'other'
 
   return {
     ...defaultMatchSetup,
     opponentName: String(storedSetup.opponentName ?? ''),
-    matchMinutes: storedMinutes,
-    matchTimePreset: storedSetup.matchTimePreset ?? matchTimePreset,
+    matchMinutes: FIXED_MATCH_MINUTES,
     possession: ['first', 'second'].includes(storedSetup.possession)
       ? storedSetup.possession
       : '',
@@ -84,11 +77,7 @@ function normalizeOpponentHistory(value) {
 }
 
 function isRegisteredPlayer(player) {
-  return player.number.trim() !== '' && player.name.trim() !== ''
-}
-
-function isPositiveInteger(value) {
-  return /^[1-9]\d*$/.test(String(value).trim())
+  return player.name.trim() !== ''
 }
 
 function App() {
@@ -126,14 +115,13 @@ function App() {
     [registeredPlayers],
   )
 
-  const isMatchMinutesValid = isPositiveInteger(matchSetup.matchMinutes)
-
   const canStartPreparation =
     matchSetup.opponentName.trim() !== '' &&
-    isMatchMinutesValid &&
     matchSetup.possession !== '' &&
     matchSetup.firstHalfMemberIds.length > 0 &&
-    matchSetup.secondHalfMemberIds.length > 0
+    matchSetup.firstHalfMemberIds.length <= MEMBER_LIMIT &&
+    matchSetup.secondHalfMemberIds.length > 0 &&
+    matchSetup.secondHalfMemberIds.length <= MEMBER_LIMIT
 
   useEffect(() => {
     writeStorage(STORAGE_KEYS.players, players)
@@ -141,7 +129,10 @@ function App() {
   }, [players])
 
   useEffect(() => {
-    writeStorage(STORAGE_KEYS.matchSetup, matchSetup)
+    writeStorage(STORAGE_KEYS.matchSetup, {
+      ...matchSetup,
+      matchMinutes: FIXED_MATCH_MINUTES,
+    })
     showSaveNoticeAfterFirstWrite('matchSetup', '自動保存済み')
   }, [matchSetup])
 
@@ -154,14 +145,15 @@ function App() {
     const registeredIds = new Set(registeredPlayerIds)
 
     setMatchSetup((current) => {
-      const firstHalfMemberIds = current.firstHalfMemberIds.filter((id) =>
-        registeredIds.has(id),
-      )
-      const secondHalfMemberIds = current.secondHalfMemberIds.filter((id) =>
-        registeredIds.has(id),
-      )
+      const firstHalfMemberIds = current.firstHalfMemberIds
+        .filter((id) => registeredIds.has(id))
+        .slice(0, MEMBER_LIMIT)
+      const secondHalfMemberIds = current.secondHalfMemberIds
+        .filter((id) => registeredIds.has(id))
+        .slice(0, MEMBER_LIMIT)
 
       if (
+        current.matchMinutes === FIXED_MATCH_MINUTES &&
         firstHalfMemberIds.length === current.firstHalfMemberIds.length &&
         secondHalfMemberIds.length === current.secondHalfMemberIds.length
       ) {
@@ -170,6 +162,7 @@ function App() {
 
       return {
         ...current,
+        matchMinutes: FIXED_MATCH_MINUTES,
         firstHalfMemberIds,
         secondHalfMemberIds,
       }
@@ -201,30 +194,20 @@ function App() {
     }, 1000)
   }
 
-  function updatePlayer(playerId, field, value) {
+  function updatePlayer(playerId, value) {
     setPlayers((current) =>
       current.map((player) =>
-        player.id === playerId ? { ...player, [field]: value } : player,
+        player.id === playerId ? { ...player, name: value } : player,
       ),
     )
   }
 
   function updateMatchSetup(field, value) {
     setReadyMessage('')
-    setMatchSetup((current) => ({ ...current, [field]: value }))
-  }
-
-  function updateMatchTimePreset(value) {
-    setReadyMessage('')
     setMatchSetup((current) => ({
       ...current,
-      matchTimePreset: value,
-      matchMinutes:
-        value === 'other'
-          ? PRESET_MINUTES.includes(current.matchMinutes)
-            ? ''
-            : current.matchMinutes
-          : value,
+      [field]: value,
+      matchMinutes: FIXED_MATCH_MINUTES,
     }))
   }
 
@@ -232,17 +215,31 @@ function App() {
     setReadyMessage('')
     setMatchSetup((current) => {
       const selectedIds = current[halfKey]
-      const nextIds = selectedIds.includes(playerId)
+      const isSelected = selectedIds.includes(playerId)
+
+      if (!isSelected && selectedIds.length >= MEMBER_LIMIT) {
+        return current
+      }
+
+      const nextIds = isSelected
         ? selectedIds.filter((id) => id !== playerId)
         : [...selectedIds, playerId]
 
-      return { ...current, [halfKey]: nextIds }
+      return {
+        ...current,
+        matchMinutes: FIXED_MATCH_MINUTES,
+        [halfKey]: nextIds,
+      }
     })
   }
 
   function setHalfMembers(halfKey, playerIds) {
     setReadyMessage('')
-    setMatchSetup((current) => ({ ...current, [halfKey]: playerIds }))
+    setMatchSetup((current) => ({
+      ...current,
+      matchMinutes: FIXED_MATCH_MINUTES,
+      [halfKey]: playerIds.slice(0, MEMBER_LIMIT),
+    }))
   }
 
   function saveOpponentCandidate() {
@@ -299,31 +296,19 @@ function App() {
         {isPlayerEditorOpen && (
           <div className="player-editor">
             <p className="helper-text">
-              12人分の背番号と表示名を登録できます。空欄の選手は未登録として扱います。
+              12人分の表示名を登録できます。空欄の選手は未登録として扱います。
             </p>
             <div className="player-grid">
-              {players.map((player) => (
-                <div className="player-row" key={player.id}>
-                  <label>
-                    <span>背番号</span>
-                    <input
-                      inputMode="numeric"
-                      value={player.number}
-                      onChange={(event) =>
-                        updatePlayer(player.id, 'number', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>表示名</span>
-                    <input
-                      value={player.name}
-                      onChange={(event) =>
-                        updatePlayer(player.id, 'name', event.target.value)
-                      }
-                    />
-                  </label>
-                </div>
+              {players.map((player, index) => (
+                <label className="player-row" key={player.id}>
+                  <span>表示名 {index + 1}</span>
+                  <input
+                    value={player.name}
+                    onChange={(event) =>
+                      updatePlayer(player.id, event.target.value)
+                    }
+                  />
+                </label>
               ))}
             </div>
           </div>
@@ -356,43 +341,9 @@ function App() {
             </datalist>
           </label>
 
-          <div className="field time-field">
+          <div className="fixed-time-card" aria-label="試合時間 5分">
             <span>試合時間</span>
-            <div className="time-options" role="group" aria-label="試合時間">
-              {[
-                ['3', '3分'],
-                ['5', '5分'],
-                ['7', '7分'],
-                ['other', 'その他'],
-              ].map(([value, label]) => (
-                <button
-                  className={
-                    matchSetup.matchTimePreset === value
-                      ? 'small-choice-button selected'
-                      : 'small-choice-button'
-                  }
-                  key={value}
-                  type="button"
-                  onClick={() => updateMatchTimePreset(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {matchSetup.matchTimePreset === 'other' && (
-              <input
-                className="custom-minute-input"
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
-                value={matchSetup.matchMinutes}
-                aria-label="その他の試合時間（分）"
-                onChange={(event) =>
-                  updateMatchSetup('matchMinutes', event.target.value)
-                }
-              />
-            )}
+            <strong>5分</strong>
           </div>
         </div>
 
@@ -420,6 +371,7 @@ function App() {
       <div className="members-layout">
         <MemberSelector
           heading="前半メンバー"
+          headingId="first-half-members"
           players={registeredPlayers}
           selectedIds={matchSetup.firstHalfMemberIds}
           actions={[
@@ -438,6 +390,7 @@ function App() {
 
         <MemberSelector
           heading="後半メンバー"
+          headingId="second-half-members"
           players={registeredPlayers}
           selectedIds={matchSetup.secondHalfMemberIds}
           actions={[
@@ -487,15 +440,26 @@ function App() {
   )
 }
 
-function MemberSelector({ heading, players, selectedIds, actions, onToggle }) {
+function MemberSelector({
+  heading,
+  headingId,
+  players,
+  selectedIds,
+  actions,
+  onToggle,
+}) {
+  const selectionLimitReached = selectedIds.length >= MEMBER_LIMIT
+
   return (
-    <section className="setup-section member-section" aria-labelledby={heading}>
+    <section className="setup-section member-section" aria-labelledby={headingId}>
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">MEMBERS</p>
-          <h2 id={heading}>{heading}</h2>
+          <h2 id={headingId}>{heading}</h2>
         </div>
-        <p>{selectedIds.length}人選択中</p>
+        <p>
+          {selectedIds.length}人選択中 / 最大{MEMBER_LIMIT}人
+        </p>
       </div>
 
       <div className="member-actions">
@@ -518,16 +482,17 @@ function MemberSelector({ heading, players, selectedIds, actions, onToggle }) {
         <div className="member-grid">
           {players.map((player) => {
             const selected = selectedIds.includes(player.id)
+            const disabled = !selected && selectionLimitReached
 
             return (
               <button
                 className={selected ? 'member-button selected' : 'member-button'}
+                disabled={disabled}
                 key={player.id}
                 type="button"
                 onClick={() => onToggle(player.id)}
               >
-                <span>#{player.number}</span>
-                <strong>{player.name}</strong>
+                {player.name}
               </button>
             )
           })}

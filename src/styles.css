@@ -82,7 +82,7 @@ button:disabled {
 
 .status-panel span,
 .field span,
-.player-row label span {
+.player-row span {
   display: block;
   color: #cbd5e1;
   font-size: 0.82rem;
@@ -168,9 +168,7 @@ button:disabled {
 
 .player-row {
   display: grid;
-  grid-template-columns: minmax(64px, 0.8fr) minmax(112px, 1.4fr);
-  align-items: end;
-  gap: 8px;
+  grid-template-columns: 1fr;
   padding: 10px;
   border-radius: 8px;
   background: #111827;
@@ -204,21 +202,32 @@ input:focus {
 
 .match-info-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 420px) minmax(320px, 1fr);
-  align-items: start;
+  grid-template-columns: minmax(260px, 420px) minmax(150px, 220px);
+  align-items: end;
   gap: 14px;
 }
 
-.time-options {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(74px, 1fr));
-  gap: 8px;
-  margin-top: 5px;
+.fixed-time-card {
+  min-height: 56px;
+  padding: 9px 14px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  background: #111827;
 }
 
-.custom-minute-input {
-  max-width: 180px;
-  margin-top: 10px;
+.fixed-time-card span {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.fixed-time-card strong {
+  display: block;
+  margin-top: 2px;
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1;
 }
 
 .choice-group {
@@ -232,14 +241,12 @@ input:focus {
 .member-button,
 .start-button,
 .secondary-button,
-.small-choice-button,
 .mini-button {
   border-radius: 8px;
   font-weight: 800;
 }
 
 .choice-button,
-.small-choice-button,
 .secondary-button,
 .mini-button {
   border: 2px solid #64748b;
@@ -248,7 +255,6 @@ input:focus {
 }
 
 .choice-button.selected,
-.small-choice-button.selected,
 .member-button.selected {
   border-color: #38bdf8;
   background: #0ea5e9;
@@ -276,8 +282,7 @@ input:focus {
   grid-column: 1 / -1;
 }
 
-.mini-button,
-.small-choice-button {
+.mini-button {
   padding: 0 10px;
   font-size: 0.92rem;
 }
@@ -294,26 +299,21 @@ input:focus {
 }
 
 .member-button {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
   min-width: 0;
   padding: 10px 12px;
   border: 2px solid #64748b;
   background: transparent;
   color: #e2e8f0;
-  text-align: left;
-}
-
-.member-button span {
-  min-width: 42px;
-  color: inherit;
-  font-weight: 900;
-}
-
-.member-button strong {
+  font-size: 1.08rem;
+  text-align: center;
   overflow-wrap: anywhere;
+}
+
+.member-button:disabled {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.58);
+  color: #64748b;
+  opacity: 0.78;
 }
 
 .empty-state {
@@ -389,7 +389,7 @@ input:focus {
   }
 
   .match-info-grid {
-    grid-template-columns: minmax(240px, 360px) 1fr;
+    grid-template-columns: minmax(240px, 360px) minmax(150px, 220px);
   }
 }
 
@@ -428,14 +428,6 @@ input:focus {
   .player-grid,
   .member-grid {
     grid-template-columns: 1fr;
-  }
-
-  .time-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .custom-minute-input {
-    max-width: none;
   }
 
   .save-toast {
