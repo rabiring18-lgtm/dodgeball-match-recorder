@@ -403,16 +403,6 @@ function App() {
               label: '選択解除',
               onClick: () => setHalfMembers('secondHalfMemberIds', []),
             },
-            {
-              label: '前半メンバーをコピー',
-              onClick: () =>
-                setHalfMembers(
-                  'secondHalfMemberIds',
-                  matchSetup.firstHalfMemberIds.filter((id) =>
-                    registeredPlayerIds.includes(id),
-                  ),
-                ),
-            },
           ]}
           onToggle={(playerId) => toggleMember('secondHalfMemberIds', playerId)}
         />
