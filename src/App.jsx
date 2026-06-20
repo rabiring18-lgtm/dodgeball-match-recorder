@@ -81,6 +81,7 @@ function isRegisteredPlayer(player) {
 }
 
 function App() {
+  const [screen, setScreen] = useState('setup')
   const [players, setPlayers] = useState(() =>
     normalizePlayers(readStorage(STORAGE_KEYS.players, createEmptyPlayers())),
   )
@@ -97,7 +98,7 @@ function App() {
     return storedPlayers.filter(isRegisteredPlayer).length === 0
   })
   const [saveNotice, setSaveNotice] = useState('')
-  const [readyMessage, setReadyMessage] = useState('')
+  const [gameStartMessage, setGameStartMessage] = useState('')
   const saveTimerRef = useRef(null)
   const didSaveOnceRef = useRef({
     players: false,
@@ -113,6 +114,16 @@ function App() {
   const registeredPlayerIds = useMemo(
     () => registeredPlayers.map((player) => player.id),
     [registeredPlayers],
+  )
+
+  const firstHalfMembers = useMemo(
+    () => getPlayersByIds(registeredPlayers, matchSetup.firstHalfMemberIds),
+    [registeredPlayers, matchSetup.firstHalfMemberIds],
+  )
+
+  const secondHalfMembers = useMemo(
+    () => getPlayersByIds(registeredPlayers, matchSetup.secondHalfMemberIds),
+    [registeredPlayers, matchSetup.secondHalfMemberIds],
   )
 
   const canStartPreparation =
@@ -203,7 +214,7 @@ function App() {
   }
 
   function updateMatchSetup(field, value) {
-    setReadyMessage('')
+    setGameStartMessage('')
     setMatchSetup((current) => ({
       ...current,
       [field]: value,
@@ -212,7 +223,7 @@ function App() {
   }
 
   function toggleMember(halfKey, playerId) {
-    setReadyMessage('')
+    setGameStartMessage('')
     setMatchSetup((current) => {
       const selectedIds = current[halfKey]
       const isSelected = selectedIds.includes(playerId)
@@ -234,7 +245,7 @@ function App() {
   }
 
   function setHalfMembers(halfKey, playerIds) {
-    setReadyMessage('')
+    setGameStartMessage('')
     setMatchSetup((current) => ({
       ...current,
       matchMinutes: FIXED_MATCH_MINUTES,
@@ -261,7 +272,30 @@ function App() {
     }
 
     saveOpponentCandidate()
-    setReadyMessage('試合記録画面は次段階で実装予定')
+    setGameStartMessage('')
+    setScreen('waiting')
+  }
+
+  function handleBackToSetup() {
+    setGameStartMessage('')
+    setScreen('setup')
+  }
+
+  function handleGameStart() {
+    setGameStartMessage('ゲーム画面は次の段階で実装予定')
+  }
+
+  if (screen === 'waiting') {
+    return (
+      <WaitingScreen
+        matchSetup={matchSetup}
+        firstHalfMembers={firstHalfMembers}
+        secondHalfMembers={secondHalfMembers}
+        gameStartMessage={gameStartMessage}
+        onGameStart={handleGameStart}
+        onBack={handleBackToSetup}
+      />
+    )
   }
 
   return (
@@ -424,20 +458,20 @@ function App() {
         </button>
       </footer>
 
-      {readyMessage && <p className="next-step-message">{readyMessage}</p>}
       {saveNotice && <div className="save-toast">{saveNotice}</div>}
     </main>
   )
 }
 
-function MemberSelector({
-  heading,
-  headingId,
-  players,
-  selectedIds,
-  actions,
-  onToggle,
-}) {
+function getPlayersByIds(players, ids) {
+  const playerMap = new Map(players.map((player) => [player.id, player]))
+  return ids
+    .map((id) => playerMap.get(id))
+    .filter(Boolean)
+    .slice(0, MEMBER_LIMIT)
+}
+
+function MemberSelector({ heading, headingId, players, selectedIds, actions, onToggle }) {
   const selectionLimitReached = selectedIds.length >= MEMBER_LIMIT
 
   return (
@@ -488,6 +522,86 @@ function MemberSelector({
           })}
         </div>
       )}
+    </section>
+  )
+}
+
+function WaitingScreen({
+  matchSetup,
+  firstHalfMembers,
+  secondHalfMembers,
+  gameStartMessage,
+  onGameStart,
+  onBack,
+}) {
+  return (
+    <main className="app-shell waiting-shell">
+      <header className="scoreboard-header">
+        <div>
+          <p className="eyebrow">READY TO START</p>
+          <h1>試合開始待機</h1>
+        </div>
+        <div className="status-panel">
+          <span>試合時間</span>
+          <strong>5分</strong>
+        </div>
+      </header>
+
+      <section className="versus-panel" aria-labelledby="versus-heading">
+        <p className="eyebrow">MATCHUP</p>
+        <h2 id="versus-heading">ROCKS vs {matchSetup.opponentName}</h2>
+        <div className="match-summary-grid">
+          <div>
+            <span>ROCKS</span>
+            <strong>{matchSetup.possession === 'first' ? '先攻' : '後攻'}</strong>
+          </div>
+          <div>
+            <span>試合時間</span>
+            <strong>5分</strong>
+          </div>
+        </div>
+      </section>
+
+      <div className="waiting-members-layout">
+        <WaitingMemberList heading="前半メンバー" members={firstHalfMembers} />
+        <WaitingMemberList heading="後半メンバー" members={secondHalfMembers} />
+      </div>
+
+      <section className="game-start-panel" aria-label="ゲーム開始操作">
+        <button className="game-start-button" type="button" onClick={onGameStart}>
+          ゲームスタート
+        </button>
+        {gameStartMessage && (
+          <p className="next-step-message">{gameStartMessage}</p>
+        )}
+      </section>
+
+      <div className="waiting-back-row">
+        <button className="secondary-button back-button" type="button" onClick={onBack}>
+          設定に戻る
+        </button>
+      </div>
+    </main>
+  )
+}
+
+function WaitingMemberList({ heading, members }) {
+  return (
+    <section className="setup-section waiting-member-section">
+      <div className="section-heading compact">
+        <div>
+          <p className="eyebrow">MEMBERS</p>
+          <h2>{heading}</h2>
+        </div>
+        <p>{members.length}人</p>
+      </div>
+      <div className="waiting-member-grid">
+        {members.map((member) => (
+          <div className="waiting-member-name" key={member.id}>
+            {member.name}
+          </div>
+        ))}
+      </div>
     </section>
   )
 }
