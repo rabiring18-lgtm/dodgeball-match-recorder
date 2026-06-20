@@ -555,10 +555,6 @@ function WaitingScreen({
             <span>ROCKS</span>
             <strong>{matchSetup.possession === 'first' ? '先攻' : '後攻'}</strong>
           </div>
-          <div>
-            <span>試合時間</span>
-            <strong>5分</strong>
-          </div>
         </div>
       </section>
 
