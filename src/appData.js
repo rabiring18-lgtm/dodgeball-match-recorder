@@ -1,0 +1,548 @@
+export const PLAYER_COUNT = 12
+export const MEMBER_LIMIT = 8
+export const MATCH_SECONDS = 5 * 60
+
+export const STORAGE_KEYS = {
+  players: 'dodgeballMatchRecorder.players',
+  matchSetup: 'dodgeballMatchRecorder.matchSetup',
+  opponentHistory: 'dodgeballMatchRecorder.opponentHistory',
+  activeMatch: 'dodgeballMatchRecorder.activeMatch',
+  savedMatches: 'dodgeballMatchRecorder.savedMatches',
+}
+
+export const defaultMatchSetup = {
+  opponentName: '',
+  matchMinutes: '5',
+  possession: '',
+  firstHalfMemberIds: [],
+  secondHalfMemberIds: [],
+}
+
+export const playEvents = {
+  rocks: [
+    { eventType: 'attack_hit', label: '当てた', symbol: '◎', tone: 'good' },
+    { eventType: 'attack_miss', label: 'アタック失敗', symbol: '×', tone: 'bad' },
+    {
+      eventType: 'pass_error',
+      label: 'パスミス',
+      symbol: '△',
+      tone: 'warn',
+    },
+    {
+      eventType: 'pass_intercepted',
+      label: 'パスカットされた',
+      symbol: '◇',
+      tone: 'warn',
+    },
+  ],
+  opponent: [
+    { eventType: 'catch_success', label: 'キャッチ', symbol: '○', tone: 'good' },
+    { eventType: 'hit_received', label: '当てられた', symbol: '×', tone: 'bad' },
+    {
+      eventType: 'opponent_pass_error',
+      label: '相手パスミス',
+      symbol: '△',
+      tone: 'warn',
+    },
+    {
+      eventType: 'pass_interception',
+      label: 'パスカット',
+      symbol: '◇',
+      tone: 'good',
+    },
+  ],
+}
+
+export const impressionEvents = [
+  { eventType: 'impression_judgment', label: '判断' },
+  { eventType: 'impression_rushed', label: '攻め急ぎ' },
+  { eventType: 'impression_catch_posture', label: '姿勢' },
+  { eventType: 'impression_stopped_feet', label: '足止まり' },
+  { eventType: 'impression_no_voice', label: '声不足' },
+  { eventType: 'impression_mental', label: 'メンタル' },
+]
+
+export const playEventTypes = new Set(
+  [...playEvents.rocks, ...playEvents.opponent].map((event) => event.eventType),
+)
+
+export const attackEventTypes = new Set(['attack_hit', 'attack_miss'])
+
+export const attackFlowLabels = {
+  pending: '判定待ち',
+  single: '単発',
+  possession_continued: '攻撃権継続',
+  unknown: '不明',
+}
+
+export const impressionEventTypes = new Set(
+  impressionEvents.map((event) => event.eventType),
+)
+
+export const eventLabels = [
+  ...playEvents.rocks,
+  ...playEvents.opponent,
+  ...impressionEvents,
+].reduce((labels, event) => {
+  labels[event.eventType] = event.label
+  return labels
+}, {})
+
+export const teamOnlyPlayEventTypes = new Set(['opponent_pass_error'])
+
+export const defensiveTargetEventTypes = new Set(['catch_success', 'hit_received'])
+
+export function normalizeAttackFlow(eventType, value) {
+  if (!attackEventTypes.has(eventType)) return null
+  return Object.prototype.hasOwnProperty.call(attackFlowLabels, value)
+    ? value
+    : 'unknown'
+}
+
+export function normalizeLastPassScope(eventType, value) {
+  if (!attackEventTypes.has(eventType)) return null
+  return ['player', 'none', 'unknown'].includes(value) ? value : 'unknown'
+}
+
+export function createEmptyPlayers() {
+  return Array.from({ length: PLAYER_COUNT }, (_, index) => ({
+    id: index,
+    name: '',
+  }))
+}
+
+export function safeReadStorage(key, fallback) {
+  try {
+    const storedValue = window.localStorage.getItem(key)
+    return storedValue ? JSON.parse(storedValue) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function safeWriteStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Storage may be unavailable in private mode. Keep the app usable.
+  }
+}
+
+export function safeRemoveStorage(key) {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Ignore storage removal failures.
+  }
+}
+
+export function normalizePlayers(players) {
+  const basePlayers = createEmptyPlayers()
+
+  if (!Array.isArray(players)) {
+    return basePlayers
+  }
+
+  return basePlayers.map((player, index) => ({
+    ...player,
+    name: String(players[index]?.name ?? players[index]?.displayName ?? ''),
+  }))
+}
+
+export function normalizeIdList(value) {
+  return Array.isArray(value)
+    ? value.filter((id) => Number.isInteger(id)).slice(0, MEMBER_LIMIT)
+    : []
+}
+
+export function normalizeMatchSetup(value) {
+  const storedSetup = value && typeof value === 'object' ? value : {}
+
+  return {
+    ...defaultMatchSetup,
+    opponentName: String(storedSetup.opponentName ?? ''),
+    matchMinutes: '5',
+    possession: ['first', 'second'].includes(storedSetup.possession)
+      ? storedSetup.possession
+      : '',
+    firstHalfMemberIds: normalizeIdList(storedSetup.firstHalfMemberIds),
+    secondHalfMemberIds: normalizeIdList(storedSetup.secondHalfMemberIds),
+  }
+}
+
+export function normalizeOpponentHistory(value) {
+  return Array.isArray(value)
+    ? value.filter((name) => typeof name === 'string' && name.trim() !== '')
+    : []
+}
+
+export function isRegisteredPlayer(player) {
+  return player.name.trim() !== ''
+}
+
+export function normalizeMemberList(value) {
+  return Array.isArray(value)
+    ? value
+        .filter((member) => member && typeof member === 'object')
+        .map((member) => ({
+          id: Number.isInteger(member.id) ? member.id : null,
+          name: String(member.name ?? member.displayName ?? ''),
+        }))
+        .filter((member) => member.name.trim() !== '')
+        .slice(0, MEMBER_LIMIT)
+    : []
+}
+
+export function normalizeEvent(event) {
+  const source = event && typeof event === 'object' ? event : {}
+  const eventType = String(source.eventType ?? '')
+  const isPlay = playEventTypes.has(eventType)
+  const isImpression = impressionEventTypes.has(eventType)
+  const defaultScope = teamOnlyPlayEventTypes.has(eventType)
+    ? 'team'
+    : isPlay
+      ? 'unknown'
+      : isImpression
+        ? 'team'
+        : 'unknown'
+  const defaultName = defaultScope === 'team' ? 'チーム全体' : '不明'
+  const targetScope = ['player', 'team', 'unknown'].includes(source.targetScope)
+    ? source.targetScope
+    : defaultScope
+
+  return {
+    eventId: String(source.eventId ?? createId('event')),
+    matchId: String(source.matchId ?? ''),
+    period: source.period === 'second_half' ? 'second_half' : 'first_half',
+    eventType,
+    possession: source.possession === 'opponent' ? 'opponent' : 'rocks',
+    elapsedTime: Number.isFinite(Number(source.elapsedTime))
+      ? Number(source.elapsedTime)
+      : calculateElapsed(source.remainingTime),
+    remainingTime: Math.max(0, Number(source.remainingTime) || 0),
+    timestamp: Number(source.timestamp) || Date.now(),
+    playerId: Number.isInteger(source.playerId) ? source.playerId : null,
+    playerNameSnapshot: String(source.playerNameSnapshot ?? defaultName),
+    targetScope,
+    attackFlow: normalizeAttackFlow(eventType, source.attackFlow),
+    lastPasserId: Number.isInteger(source.lastPasserId) ? source.lastPasserId : null,
+    lastPasserNameSnapshot:
+      normalizeLastPassScope(eventType, source.lastPassScope) === 'player'
+        ? String(source.lastPasserNameSnapshot ?? '不明')
+        : null,
+    lastPassScope: normalizeLastPassScope(eventType, source.lastPassScope),
+  }
+}
+
+export function normalizeMatch(match) {
+  if (!match || typeof match !== 'object' || !match.matchId) {
+    return null
+  }
+
+  const period = match.period === 'second_half' ? 'second_half' : 'first_half'
+  const firstPossession = match.firstPossession === 'opponent' ? 'opponent' : 'rocks'
+
+  return {
+    ...match,
+    matchId: String(match.matchId),
+    status: String(match.status ?? 'waiting'),
+    screen: String(match.screen ?? 'game'),
+    period,
+    opponentName: String(match.opponentName ?? ''),
+    firstPossession,
+    currentPossession: match.currentPossession === 'opponent' ? 'opponent' : 'rocks',
+    firstHalfMembers: normalizeMemberList(match.firstHalfMembers),
+    secondHalfMembers: normalizeMemberList(match.secondHalfMembers),
+    events: Array.isArray(match.events) ? match.events.map(normalizeEvent) : [],
+    remainingTime: Math.max(0, Number(match.remainingTime) || 0),
+    timerRunning: Boolean(match.timerRunning),
+    timerEndAt: match.timerEndAt ? Number(match.timerEndAt) : null,
+    createdAt: Number(match.createdAt) || Date.now(),
+    updatedAt: Number(match.updatedAt) || Date.now(),
+    completedAt: match.completedAt ? Number(match.completedAt) : null,
+  }
+}
+
+export function normalizeSavedMatches(value) {
+  return Array.isArray(value)
+    ? value.map(normalizeMatch).filter(Boolean).sort((a, b) => b.createdAt - a.createdAt)
+    : []
+}
+
+export function formatTime(totalSeconds) {
+  const safeSeconds = Math.max(0, Number(totalSeconds) || 0)
+  const minutes = Math.floor(safeSeconds / 60)
+  const seconds = safeSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+export function createId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+export function getPlayersByIds(players, ids) {
+  const playerMap = new Map(players.map((player) => [player.id, player]))
+  return ids
+    .map((id) => playerMap.get(id))
+    .filter(Boolean)
+    .slice(0, MEMBER_LIMIT)
+}
+
+export function getCurrentRemaining(match) {
+  if (!match) {
+    return MATCH_SECONDS
+  }
+
+  if (match.timerRunning && match.timerEndAt) {
+    return Math.max(0, Math.ceil((match.timerEndAt - Date.now()) / 1000))
+  }
+
+  return Math.max(0, Number(match.remainingTime) || 0)
+}
+
+export function calculateElapsed(remainingTime) {
+  return Math.max(0, MATCH_SECONDS - Math.max(0, Number(remainingTime) || 0))
+}
+
+export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMembers) {
+  const now = Date.now()
+  const firstPossession = matchSetup.possession === 'first' ? 'rocks' : 'opponent'
+
+  return {
+    matchId: createId('match'),
+    status: 'first_half_in_progress',
+    screen: 'game',
+    period: 'first_half',
+    opponentName: matchSetup.opponentName.trim(),
+    firstPossession,
+    currentPossession: firstPossession,
+    firstHalfMembers,
+    secondHalfMembers,
+    events: [],
+    remainingTime: MATCH_SECONDS,
+    timerRunning: true,
+    timerEndAt: now + MATCH_SECONDS * 1000,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: null,
+  }
+}
+
+export function createEvent(match, eventType, target = {}) {
+  const remainingTime = getCurrentRemaining(match)
+  const targetScope = ['player', 'team', 'unknown'].includes(target.targetScope)
+    ? target.targetScope
+    : playEventTypes.has(eventType)
+      ? 'unknown'
+      : 'team'
+
+  return {
+    eventId: createId('event'),
+    matchId: match.matchId,
+    period: match.period,
+    eventType,
+    possession: match.currentPossession,
+    elapsedTime: calculateElapsed(remainingTime),
+    remainingTime,
+    timestamp: Date.now(),
+    playerId: targetScope === 'player' && Number.isInteger(target.playerId) ? target.playerId : null,
+    playerNameSnapshot:
+      target.playerNameSnapshot ??
+      (targetScope === 'team' ? 'チーム全体' : targetScope === 'unknown' ? '不明' : null),
+    targetScope,
+    attackFlow: normalizeAttackFlow(eventType, target.attackFlow),
+    lastPasserId:
+      normalizeLastPassScope(eventType, target.lastPassScope) === 'player' &&
+      Number.isInteger(target.lastPasserId)
+        ? target.lastPasserId
+        : null,
+    lastPasserNameSnapshot:
+      normalizeLastPassScope(eventType, target.lastPassScope) === 'player'
+        ? String(target.lastPasserNameSnapshot ?? '不明')
+        : null,
+    lastPassScope: normalizeLastPassScope(eventType, target.lastPassScope),
+  }
+}
+
+export function getEventsForScope(events, scope) {
+  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  if (scope === 'all') {
+    return normalizedEvents
+  }
+
+  return normalizedEvents.filter((event) => event.period === scope)
+}
+
+export function buildStats(events) {
+  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const count = (eventType) =>
+    normalizedEvents.filter((event) => event.eventType === eventType).length
+  const attackHit = count('attack_hit')
+  const attackMiss = count('attack_miss')
+  const catchSuccess = count('catch_success')
+  const hitReceived = count('hit_received')
+  const totalAttack = attackHit + attackMiss
+  const opponentAttack = catchSuccess + hitReceived
+  const attackFlowCount = (attackFlow) =>
+    normalizedEvents.filter(
+      (event) => attackEventTypes.has(event.eventType) && event.attackFlow === attackFlow,
+    ).length
+  const singleAttacks = attackFlowCount('single')
+  const continuedAttacks = attackFlowCount('possession_continued')
+  const unknownAttacks = attackFlowCount('unknown')
+  const knownFlowTotal = singleAttacks + continuedAttacks
+  const rocksPassErrors = count('pass_error')
+  const rocksPassIntercepted = count('pass_intercepted')
+  const opponentPassErrors = count('opponent_pass_error')
+  const rocksPassInterceptions = count('pass_interception')
+  const impressions = impressionEvents
+    .map((item, index) => ({
+      ...item,
+      count: count(item.eventType),
+      order: index,
+    }))
+    .sort((a, b) => b.count - a.count || a.order - b.order)
+
+  return {
+    attack: {
+      total: totalAttack,
+      hit: attackHit,
+      miss: attackMiss,
+      rate: totalAttack > 0 ? Math.round((attackHit / totalAttack) * 100) : 0,
+      flow: {
+        single: singleAttacks,
+        possessionContinued: continuedAttacks,
+        unknown: unknownAttacks,
+        continuationRate:
+          knownFlowTotal > 0 ? Math.round((continuedAttacks / knownFlowTotal) * 100) : null,
+      },
+    },
+    defense: {
+      opponentAttack,
+      catch: catchSuccess,
+      hitReceived,
+      rate:
+        opponentAttack > 0 ? Math.round((catchSuccess / opponentAttack) * 100) : 0,
+    },
+    pass: {
+      errors: rocksPassErrors,
+      rocksPassErrors,
+      rocksPassIntercepted,
+      opponentPassErrors,
+      rocksPassInterceptions,
+    },
+    impressions,
+  }
+}
+
+export function buildPlayerStats(events, members) {
+  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const memberMap = new Map((members || []).map((member) => [member.id, member]))
+
+  return (members || []).map((member) => {
+    const playerEvents = normalizedEvents.filter(
+      (event) => event.targetScope === 'player' && event.playerId === member.id,
+    )
+    const count = (eventType) =>
+      playerEvents.filter((event) => event.eventType === eventType).length
+    const hits = count('attack_hit')
+    const misses = count('attack_miss')
+    const attacks = hits + misses
+    const lastPassEvents = normalizedEvents.filter(
+      (event) =>
+        attackEventTypes.has(event.eventType) &&
+        event.lastPassScope === 'player' &&
+        event.lastPasserId === member.id,
+    )
+    const lastPasses = lastPassEvents.length
+    const lastPassHits = lastPassEvents.filter(
+      (event) => event.eventType === 'attack_hit',
+    ).length
+    const flowCount = (attackFlow) =>
+      playerEvents.filter(
+        (event) => attackEventTypes.has(event.eventType) && event.attackFlow === attackFlow,
+      ).length
+    const singleAttacks = flowCount('single')
+    const continuedAttacks = flowCount('possession_continued')
+    const knownFlowTotal = singleAttacks + continuedAttacks
+    const catches = count('catch_success')
+    const hitReceived = count('hit_received')
+    const defenseTotal = catches + hitReceived
+    const impressions = impressionEvents
+      .map((item) => ({ ...item, count: count(item.eventType) }))
+      .filter((item) => item.count > 0)
+
+    return {
+      id: member.id,
+      name: memberMap.get(member.id)?.name ?? member.name,
+      attacks,
+      hits,
+      misses,
+      attackRate: attacks > 0 ? Math.round((hits / attacks) * 100) : null,
+      singleAttacks,
+      continuedAttacks,
+      unknownAttackFlow: flowCount('unknown'),
+      continuationRate:
+        knownFlowTotal > 0 ? Math.round((continuedAttacks / knownFlowTotal) * 100) : null,
+      catches,
+      hitReceived,
+      defenseTotal,
+      catchRate: defenseTotal > 0 ? Math.round((catches / defenseTotal) * 100) : null,
+      passErrors: count('pass_error'),
+      passIntercepted: count('pass_intercepted'),
+      passInterceptions: count('pass_interception'),
+      lastPasses,
+      lastPassHits,
+      lastPassHitRate:
+        lastPasses > 0 ? Math.round((lastPassHits / lastPasses) * 100) : null,
+      impressions,
+    }
+  })
+}
+
+export function getTeamImpressions(events) {
+  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  return impressionEvents
+    .map((item) => ({
+      ...item,
+      count: normalizedEvents.filter(
+        (event) => event.eventType === item.eventType && event.targetScope === 'team',
+      ).length,
+    }))
+    .filter((item) => item.count > 0)
+}
+
+export function getEventTargetLabel(event) {
+  const normalizedEvent = normalizeEvent(event)
+  if (normalizedEvent.targetScope === 'team') {
+    return normalizedEvent.playerNameSnapshot || 'チーム全体'
+  }
+  if (normalizedEvent.targetScope === 'unknown') return '選手不明'
+  return normalizedEvent.playerNameSnapshot || '選手不明'
+}
+
+export function validateBackup(data) {
+  return (
+    data &&
+    typeof data === 'object' &&
+    [1, 2].includes(data.version) &&
+    Array.isArray(data.players) &&
+    Array.isArray(data.opponentHistory) &&
+    Array.isArray(data.savedMatches) &&
+    Object.prototype.hasOwnProperty.call(data, 'activeMatch')
+  )
+}
+
+export function getBackupFileName(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0')
+  const stamp = [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    '-',
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+  ].join('')
+
+  return `dodgeball-match-recorder-backup-${stamp}.json`
+}
