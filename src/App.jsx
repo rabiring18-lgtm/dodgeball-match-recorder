@@ -6,6 +6,7 @@ import {
   attackEventTypes,
   attackFlowLabels,
   buildPlayerStats,
+  buildPlayerSummary,
   buildStats,
   createEmptyPlayers,
   createEvent,
@@ -2178,7 +2179,8 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
   const maxImpression = Math.max(1, ...stats.impressions.map((item) => item.count))
 
   return (
-    <section className="stats-grid">
+    <>
+      <section className="stats-grid">
       <div className="stat-card">
         <h2>攻撃</h2>
         <StatLine label="総アタック数" value={stats.attack.total} />
@@ -2217,20 +2219,77 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
         />
         <StatLine label="パスミス" value={stats.pass.rocksPassErrors} />
       </div>
-      <div className="stat-card impressions">
-        <h2>コーチ所感</h2>
-        {stats.impressions.map((item, index) => (
-          <div className={index < 3 ? 'bar-row top' : 'bar-row'} key={item.eventType}>
-            <span>{item.label}</span>
-            <div>
-              <i style={{ width: `${(item.count / maxImpression) * 100}%` }} />
+      </section>
+      <section className="analysis-insight-grid">
+        <div className="stat-card impressions">
+          <h2>コーチ所感</h2>
+          {stats.impressions.map((item, index) => (
+            <div className={index < 3 ? 'bar-row top' : 'bar-row'} key={item.eventType}>
+              <span>{item.label}</span>
+              <div>
+                <i style={{ width: `${(item.count / maxImpression) * 100}%` }} />
+              </div>
+              <strong>{item.count}</strong>
             </div>
-            <strong>{item.count}</strong>
-          </div>
+          ))}
+        </div>
+        <PlayerSummary events={events} members={members} scope={scope} />
+      </section>
+    </>
+  )
+}
+
+function PlayerSummary({ events, members, scope }) {
+  const summary = buildPlayerSummary(events, members)
+  const items = [...summary.success, ...summary.review]
+
+  return (
+    <article className="stat-card player-summary-card">
+      <h2>{getPlayerSummaryTitle(scope)}</h2>
+      <div className="summary-department-list">
+        {items.map((item) => (
+          <PlayerSummaryDepartment
+            item={item}
+            key={item.key}
+            showRank={summary.success.some((successItem) => successItem.key === item.key)}
+          />
         ))}
       </div>
-    </section>
+    </article>
   )
+}
+
+function PlayerSummaryDepartment({ item, showRank }) {
+  return (
+    <div className={showRank ? 'summary-department success' : 'summary-department review'}>
+      <strong>{item.label}</strong>
+      {item.players.length === 0 ? (
+        <span className="summary-empty">記録なし</span>
+      ) : (
+        <div className="summary-chip-row">
+          {item.players.map((player, index) => (
+            <span className="summary-chip" key={player.key}>
+              {showRank && <small>{getSummaryRank(item.players, index)}位</small>}
+              <em>{player.name}</em>
+              <b>{player.count}</b>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function getPlayerSummaryTitle(scope) {
+  if (scope === 'second_half') return '後半選手サマリー'
+  if (scope === 'all') return '試合全体 選手サマリー'
+  return '前半選手サマリー'
+}
+
+function getSummaryRank(players, index) {
+  const current = players[index]
+  const firstSameCountIndex = players.findIndex((player) => player.count === current.count)
+  return firstSameCountIndex + 1
 }
 
 function PlayerStatsView({ events, members, compact = false }) {
@@ -2240,6 +2299,12 @@ function PlayerStatsView({ events, members, compact = false }) {
     return <p className="empty-state">対象メンバーがありません。</p>
   }
 
+  const rankMaps = {
+    hits: buildRankMap(stats, 'hits'),
+    catches: buildRankMap(stats, 'catches'),
+    lastPassHits: buildRankMap(stats, 'lastPassHits'),
+  }
+
   return (
     <section className="player-stats-grid">
       {stats.map((player) => (
@@ -2247,7 +2312,7 @@ function PlayerStatsView({ events, members, compact = false }) {
           <h2>{player.name}</h2>
           <div className="mini-stat-grid">
             <StatLine label="アタック" value={player.attacks} />
-            <StatLine label="当てた" value={player.hits} />
+            <StatLine label="当てた" value={player.hits} rank={rankMaps.hits.get(player.id)} />
             <StatLine label="成功率" value={player.attackRate === null ? '—' : `${player.attackRate}%`} />
             {!compact && <StatLine label="アタック失敗" value={player.misses} />}
             {!compact && <StatLine label="単発" value={player.singleAttacks} />}
@@ -2258,19 +2323,23 @@ function PlayerStatsView({ events, members, compact = false }) {
                 value={player.continuationRate === null ? '—' : `${player.continuationRate}%`}
               />
             )}
-            <StatLine label="キャッチ" value={player.catches} />
+            <StatLine label="キャッチ" value={player.catches} rank={rankMaps.catches.get(player.id)} />
             <StatLine label="当てられた" value={player.hitReceived} />
             {!compact && <StatLine label="キャッチ率" value={player.catchRate === null ? '—' : `${player.catchRate}%`} />}
-            <StatLine label="パスミス" value={player.passErrors} />
-            <StatLine label="投げ手パスミス" value={player.passErrorAsPasser} />
-            <StatLine label="受け手パスミス" value={player.passErrorAsReceiver} />
-            <StatLine label="投げ手原因" value={player.passerCauseErrors} />
-            <StatLine label="受け手原因" value={player.receiverCauseErrors} />
-            <StatLine label="両方原因関与" value={player.bothCausePassErrors} />
-            <StatLine label="パスカットされた" value={player.passIntercepted} />
+            <StatLine
+              label="パスミス"
+              value={compact ? player.passErrorResponsibility : player.passErrors}
+              tone={(compact ? player.passErrorResponsibility : player.passErrors) > 0 ? 'caution' : undefined}
+            />
+            {!compact && <StatLine label="投げ手パスミス" value={player.passErrorAsPasser} />}
+            {!compact && <StatLine label="受け手パスミス" value={player.passErrorAsReceiver} />}
+            {!compact && <StatLine label="投げ手原因" value={player.passerCauseErrors} />}
+            {!compact && <StatLine label="受け手原因" value={player.receiverCauseErrors} />}
+            {!compact && <StatLine label="両方原因関与" value={player.bothCausePassErrors} />}
+            <StatLine label="パスカットされた" value={player.passIntercepted} tone={player.passIntercepted > 0 ? 'caution' : undefined} />
             {!compact && <StatLine label="パスカット" value={player.passInterceptions} />}
             <StatLine label="ラストパス" value={player.lastPasses} />
-            <StatLine label="ラストパス成功" value={player.lastPassHits} />
+            <StatLine label="ラストパス成功" value={player.lastPassHits} rank={rankMaps.lastPassHits.get(player.id)} />
             {!compact && (
               <StatLine
                 label="ラストパス成功率"
@@ -2296,11 +2365,30 @@ function PlayerStatsView({ events, members, compact = false }) {
   )
 }
 
-function StatLine({ label, value }) {
+function buildRankMap(players, field) {
+  const ranked = [...players]
+    .filter((player) => Number(player[field]) > 0)
+    .sort((a, b) => Number(b[field]) - Number(a[field]) || a.name.localeCompare(b.name, 'ja'))
+    .slice(0, 3)
+
+  return new Map(
+    ranked.map((player) => {
+      const firstSameCountIndex = ranked.findIndex(
+        (rankedPlayer) => Number(rankedPlayer[field]) === Number(player[field]),
+      )
+      return [player.id, firstSameCountIndex + 1]
+    }),
+  )
+}
+
+function StatLine({ label, value, rank, tone }) {
   return (
-    <div className="stat-line">
+    <div className={tone ? `stat-line ${tone}` : 'stat-line'}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>
+        {value}
+        {rank && <small className="rank-badge">{rank}位</small>}
+      </strong>
     </div>
   )
 }

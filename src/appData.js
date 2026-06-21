@@ -543,6 +543,8 @@ export function buildPlayerStats(events, members) {
         event.passErrorCause === 'both' &&
         (event.passerId === member.id || event.receiverId === member.id),
     ).length
+    const passErrorResponsibility =
+      passerCauseErrors + receiverCauseErrors + bothCausePassErrors
     const impressions = impressionEvents
       .map((item) => ({ ...item, count: count(item.eventType) }))
       .filter((item) => item.count > 0)
@@ -569,6 +571,7 @@ export function buildPlayerStats(events, members) {
       passerCauseErrors,
       receiverCauseErrors,
       bothCausePassErrors,
+      passErrorResponsibility,
       passIntercepted: count('pass_intercepted'),
       passInterceptions: count('pass_interception'),
       lastPasses,
@@ -578,6 +581,86 @@ export function buildPlayerStats(events, members) {
       impressions,
     }
   })
+}
+
+export function buildPlayerSummary(events, members = []) {
+  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const memberMap = new Map((members || []).map((member) => [member.id, member.name]))
+  const createBucket = () => new Map()
+  const buckets = {
+    attackHit: createBucket(),
+    catchSuccess: createBucket(),
+    lastPassHit: createBucket(),
+    passError: createBucket(),
+    passIntercepted: createBucket(),
+  }
+  const addCount = (bucket, id, snapshotName) => {
+    const hasId = Number.isInteger(id)
+    const name = String(snapshotName || (hasId ? memberMap.get(id) : '') || '').trim()
+    if (!hasId && !name) return
+    const key = hasId ? `id:${id}` : `name:${name}`
+    const current = bucket.get(key) || {
+      key,
+      playerId: hasId ? id : null,
+      name: name || '不明',
+      count: 0,
+    }
+    bucket.set(key, {
+      ...current,
+      name: current.name || name || '不明',
+      count: current.count + 1,
+    })
+  }
+  const ranked = (bucket) =>
+    Array.from(bucket.values())
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'))
+      .slice(0, 3)
+
+  normalizedEvents.forEach((event) => {
+    if (event.eventType === 'attack_hit') {
+      addCount(buckets.attackHit, event.playerId, event.playerNameSnapshot)
+      if (event.lastPassScope === 'player') {
+        addCount(buckets.lastPassHit, event.lastPasserId, event.lastPasserNameSnapshot)
+      }
+      return
+    }
+
+    if (event.eventType === 'catch_success') {
+      addCount(buckets.catchSuccess, event.playerId, event.playerNameSnapshot)
+      return
+    }
+
+    if (event.eventType === 'pass_intercepted') {
+      addCount(buckets.passIntercepted, event.playerId, event.playerNameSnapshot)
+      return
+    }
+
+    if (event.eventType === 'pass_error') {
+      if (event.passErrorCause === 'passer') {
+        addCount(buckets.passError, event.passerId, event.passerNameSnapshot)
+      }
+      if (event.passErrorCause === 'receiver') {
+        addCount(buckets.passError, event.receiverId, event.receiverNameSnapshot)
+      }
+      if (event.passErrorCause === 'both') {
+        addCount(buckets.passError, event.passerId, event.passerNameSnapshot)
+        addCount(buckets.passError, event.receiverId, event.receiverNameSnapshot)
+      }
+    }
+  })
+
+  return {
+    success: [
+      { key: 'attackHit', label: 'アタック成功', players: ranked(buckets.attackHit) },
+      { key: 'catchSuccess', label: 'キャッチ', players: ranked(buckets.catchSuccess) },
+      { key: 'lastPassHit', label: 'ラストパス成功', players: ranked(buckets.lastPassHit) },
+    ],
+    review: [
+      { key: 'passError', label: 'パスミス', players: ranked(buckets.passError) },
+      { key: 'passIntercepted', label: 'パスカットされた', players: ranked(buckets.passIntercepted) },
+    ],
+  }
 }
 
 export function getTeamImpressions(events) {
