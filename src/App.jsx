@@ -87,6 +87,7 @@ function App() {
   const [selectedSavedMatch, setSelectedSavedMatch] = useState(null)
   const [targetPicker, setTargetPicker] = useState(null)
   const [lastPassPicker, setLastPassPicker] = useState(null)
+  const [passErrorPicker, setPassErrorPicker] = useState(null)
   const [zeroRosterPrompt, setZeroRosterPrompt] = useState(null)
   const [dismissedZeroRosterKey, setDismissedZeroRosterKey] = useState(null)
   const noticeTimerRef = useRef(null)
@@ -400,6 +401,16 @@ function App() {
       recordTeamOnlyEvent(eventType)
       return
     }
+    if (eventType === 'pass_error') {
+      setPassErrorPicker({
+        eventType,
+        label: eventLabels[eventType],
+        stage: 'passer',
+        passer: null,
+        receiver: null,
+      })
+      return
+    }
 
     setTargetPicker({
       eventType,
@@ -491,6 +502,64 @@ function App() {
     }
   }
 
+  function selectPassErrorPasser(passer) {
+    setPassErrorPicker((current) =>
+      current
+        ? {
+            ...current,
+            stage: 'receiver',
+            passer,
+          }
+        : current,
+    )
+  }
+
+  function selectPassErrorReceiver(receiver) {
+    setPassErrorPicker((current) =>
+      current
+        ? {
+            ...current,
+            stage: 'cause',
+            receiver,
+          }
+        : current,
+    )
+  }
+
+  function commitPassError(cause) {
+    if (!passErrorPicker || !activeMatch) return
+    const { eventType, label, passer, receiver } = passErrorPicker
+    if (!passer || !receiver) return
+
+    setActiveMatch((current) => {
+      if (!current) return current
+      const baseMatch = finalizePendingAttackFlow(current, current.period, 'single')
+      const event = createEvent(baseMatch, eventType, {
+        targetScope: 'player',
+        playerId: passer.id,
+        playerNameSnapshot: passer.name,
+        passerId: passer.id,
+        passerNameSnapshot: passer.name,
+        receiverId: receiver.id,
+        receiverNameSnapshot: receiver.name,
+        passErrorCause: cause,
+      })
+      return {
+        ...baseMatch,
+        events: [...baseMatch.events, event],
+        currentPossession: 'opponent',
+        remainingTime: event.remainingTime,
+        updatedAt: Date.now(),
+      }
+    })
+
+    setPassErrorPicker(null)
+    showNotice(`「${label}」を記録しました`)
+    window.setTimeout(() => {
+      showNotice('相手ボールに切り替えました')
+    }, 260)
+  }
+
   function commitAttackWithLastPass(lastPass) {
     if (!lastPassPicker || !activeMatch) return
     const { eventType, label, attacker } = lastPassPicker
@@ -516,7 +585,7 @@ function App() {
   }
 
   function undoLastEvent() {
-    if (!activeMatch?.events.length || targetPicker || lastPassPicker) return
+    if (!activeMatch?.events.length || targetPicker || lastPassPicker || passErrorPicker) return
     const lastEvent = activeMatch.events[activeMatch.events.length - 1]
     updateActiveMatch((current) =>
       recalculateAttackFlows(
@@ -531,7 +600,7 @@ function App() {
   }
 
   function deleteEvent(eventId) {
-    if (targetPicker || lastPassPicker) return
+    if (targetPicker || lastPassPicker || passErrorPicker) return
     const target = activeMatch?.events.find((event) => event.eventId === eventId)
     if (!target) return
     if (!window.confirm(`「${eventLabels[target.eventType]}」を削除しますか？`)) return
@@ -820,7 +889,7 @@ function App() {
           match={activeMatch}
           members={gameMembers}
           operationPanelOpen={isOperationPanelOpen}
-          targetPickerOpen={Boolean(targetPicker || lastPassPicker || zeroRosterPrompt)}
+          targetPickerOpen={Boolean(targetPicker || lastPassPicker || passErrorPicker || zeroRosterPrompt)}
           onToggleOperationPanel={() => setIsOperationPanelOpen(true)}
           onCloseOperationPanel={() => setIsOperationPanelOpen(false)}
           onToggleTimer={handleTimerToggle}
@@ -847,6 +916,16 @@ function App() {
             members={gameMembers}
             onSelect={commitAttackWithLastPass}
             onCancel={() => setLastPassPicker(null)}
+          />
+        )}
+        {passErrorPicker && (
+          <PassErrorPicker
+            pending={passErrorPicker}
+            members={gameMembers}
+            onSelectPasser={selectPassErrorPasser}
+            onSelectReceiver={selectPassErrorReceiver}
+            onSelectCause={commitPassError}
+            onCancel={() => setPassErrorPicker(null)}
           />
         )}
         {zeroRosterPrompt && (
@@ -1332,6 +1411,12 @@ function GameScreen({
                       ラストパス：{getLastPassLabel(event)}
                     </span>
                   )}
+                  {event.eventType === 'pass_error' &&
+                    getPassErrorHistoryLines(event).map((line) => (
+                      <span className="history-subline" key={line}>
+                        {line}
+                      </span>
+                    ))}
                 </strong>
                 <button type="button" onClick={() => onDeleteEvent(event.eventId)} disabled={targetPickerOpen}>
                   削除
@@ -1513,6 +1598,95 @@ function LastPassPicker({ attacker, members, onSelect, onCancel }) {
           >
             不明
           </button>
+          <button className="target-cancel-button" type="button" onClick={onCancel}>
+            キャンセル
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function PassErrorPicker({
+  pending,
+  members,
+  onSelectPasser,
+  onSelectReceiver,
+  onSelectCause,
+  onCancel,
+}) {
+  const isReceiverStage = pending.stage === 'receiver'
+  const isCauseStage = pending.stage === 'cause'
+  const title = pending.stage === 'passer'
+    ? '投げた選手は？'
+    : isReceiverStage
+      ? '受ける予定だった選手は？'
+      : '主な原因は？'
+
+  return (
+    <div className="target-overlay" role="presentation">
+      <section className="target-modal" role="dialog" aria-modal="true">
+        <p className="eyebrow">PASS ERROR</p>
+        <h2>{title}</h2>
+        <p>
+          {isCauseStage
+            ? `${pending.passer?.name ?? ''} から ${pending.receiver?.name ?? ''} へのパス`
+            : '出場メンバーから選んでください'}
+        </p>
+
+        {!isCauseStage && (
+          <div className="target-player-grid">
+            {members.map((member) => {
+              const isPasser = isReceiverStage && member.id === pending.passer?.id
+              return (
+                <button
+                  className={
+                    isPasser ? 'target-player-button unavailable' : 'target-player-button'
+                  }
+                  disabled={isPasser}
+                  key={member.id}
+                  type="button"
+                  onClick={() =>
+                    isReceiverStage
+                      ? onSelectReceiver(member)
+                      : onSelectPasser(member)
+                  }
+                >
+                  <span>{member.name}</span>
+                  {isPasser && <small>投げ手</small>}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {isCauseStage && (
+          <div className="target-option-row pass-cause-row">
+            <button
+              className="target-cause-button"
+              type="button"
+              onClick={() => onSelectCause('passer')}
+            >
+              投げ手
+            </button>
+            <button
+              className="target-cause-button"
+              type="button"
+              onClick={() => onSelectCause('receiver')}
+            >
+              受け手
+            </button>
+            <button
+              className="target-cause-button"
+              type="button"
+              onClick={() => onSelectCause('both')}
+            >
+              両方
+            </button>
+          </div>
+        )}
+
+        <div className="target-option-row single-action-row">
           <button className="target-cancel-button" type="button" onClick={onCancel}>
             キャンセル
           </button>
@@ -1800,6 +1974,28 @@ function getLastPassLabel(event) {
   return '不明'
 }
 
+function getPassErrorHistoryLines(event) {
+  const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '不明'
+  const receiverName = event.receiverNameSnapshot
+  const causeLabel = getPassErrorCauseLabel(event.passErrorCause)
+
+  if (!receiverName || !causeLabel) {
+    return [`投げ手：${passerName}`, '受け手・原因：記録なし']
+  }
+
+  return [
+    `投げ手：${passerName}　受け手：${receiverName}`,
+    `原因：${causeLabel}`,
+  ]
+}
+
+function getPassErrorCauseLabel(cause) {
+  if (cause === 'passer') return '投げ手'
+  if (cause === 'receiver') return '受け手'
+  if (cause === 'both') return '両方'
+  return null
+}
+
 function RosterTrendSection({ match, scope }) {
   const charts =
     scope === 'all'
@@ -2015,6 +2211,9 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
       <div className="stat-card">
         <h2>パス</h2>
         <StatLine label="ROCKSパスミス数" value={stats.pass.rocksPassErrors} />
+        <StatLine label="投げ手原因" value={stats.pass.passErrorCauses.passer} />
+        <StatLine label="受け手原因" value={stats.pass.passErrorCauses.receiver} />
+        <StatLine label="両方原因" value={stats.pass.passErrorCauses.both} />
         <StatLine label="ROCKSがパスカットされた数" value={stats.pass.rocksPassIntercepted} />
         <StatLine label="相手パスミス数" value={stats.pass.opponentPassErrors} />
         <StatLine label="ROCKSパスカット数" value={stats.pass.rocksPassInterceptions} />
@@ -2083,6 +2282,11 @@ function PlayerStatsView({ events, members, compact = false }) {
             <StatLine label="当てられた" value={player.hitReceived} />
             {!compact && <StatLine label="キャッチ率" value={player.catchRate === null ? '—' : `${player.catchRate}%`} />}
             <StatLine label="パスミス" value={player.passErrors} />
+            <StatLine label="投げ手パスミス" value={player.passErrorAsPasser} />
+            <StatLine label="受け手パスミス" value={player.passErrorAsReceiver} />
+            <StatLine label="投げ手原因" value={player.passerCauseErrors} />
+            <StatLine label="受け手原因" value={player.receiverCauseErrors} />
+            <StatLine label="両方原因関与" value={player.bothCausePassErrors} />
             <StatLine label="パスカットされた" value={player.passIntercepted} />
             {!compact && <StatLine label="パスカット" value={player.passInterceptions} />}
             <StatLine label="ラストパス" value={player.lastPasses} />

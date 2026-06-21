@@ -196,6 +196,12 @@ export function normalizeMemberList(value) {
 export function normalizeEvent(event) {
   const source = event && typeof event === 'object' ? event : {}
   const eventType = String(source.eventType ?? '')
+  const isPassError = eventType === 'pass_error'
+  const passErrorPasserId = isPassError && Number.isInteger(source.passerId)
+    ? source.passerId
+    : isPassError && Number.isInteger(source.playerId)
+      ? source.playerId
+      : null
   const isPlay = playEventTypes.has(eventType)
   const isImpression = impressionEventTypes.has(eventType)
   const defaultScope = teamOnlyPlayEventTypes.has(eventType)
@@ -231,6 +237,20 @@ export function normalizeEvent(event) {
         ? String(source.lastPasserNameSnapshot ?? '不明')
         : null,
     lastPassScope: normalizeLastPassScope(eventType, source.lastPassScope),
+    passerId: passErrorPasserId,
+    passerNameSnapshot:
+      passErrorPasserId !== null
+        ? String(source.passerNameSnapshot ?? source.playerNameSnapshot ?? '不明')
+        : null,
+    receiverId: isPassError && Number.isInteger(source.receiverId) ? source.receiverId : null,
+    receiverNameSnapshot:
+      isPassError && Number.isInteger(source.receiverId)
+        ? String(source.receiverNameSnapshot ?? '不明')
+        : null,
+    passErrorCause:
+      isPassError && ['passer', 'receiver', 'both'].includes(source.passErrorCause)
+        ? source.passErrorCause
+        : null,
   }
 }
 
@@ -330,6 +350,7 @@ export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMem
 
 export function createEvent(match, eventType, target = {}) {
   const remainingTime = getCurrentRemaining(match)
+  const isPassError = eventType === 'pass_error'
   const targetScope = ['player', 'team', 'unknown'].includes(target.targetScope)
     ? target.targetScope
     : playEventTypes.has(eventType)
@@ -361,6 +382,22 @@ export function createEvent(match, eventType, target = {}) {
         ? String(target.lastPasserNameSnapshot ?? '不明')
         : null,
     lastPassScope: normalizeLastPassScope(eventType, target.lastPassScope),
+    passerId:
+      isPassError && Number.isInteger(target.passerId) ? target.passerId : null,
+    passerNameSnapshot:
+      isPassError && Number.isInteger(target.passerId)
+        ? String(target.passerNameSnapshot ?? target.playerNameSnapshot ?? '不明')
+        : null,
+    receiverId:
+      isPassError && Number.isInteger(target.receiverId) ? target.receiverId : null,
+    receiverNameSnapshot:
+      isPassError && Number.isInteger(target.receiverId)
+        ? String(target.receiverNameSnapshot ?? '不明')
+        : null,
+    passErrorCause:
+      isPassError && ['passer', 'receiver', 'both'].includes(target.passErrorCause)
+        ? target.passErrorCause
+        : null,
   }
 }
 
@@ -395,6 +432,10 @@ export function buildStats(events) {
   const rocksPassIntercepted = count('pass_intercepted')
   const opponentPassErrors = count('opponent_pass_error')
   const rocksPassInterceptions = count('pass_interception')
+  const passErrorCauseCount = (cause) =>
+    normalizedEvents.filter(
+      (event) => event.eventType === 'pass_error' && event.passErrorCause === cause,
+    ).length
   const impressions = impressionEvents
     .map((item, index) => ({
       ...item,
@@ -430,6 +471,11 @@ export function buildStats(events) {
       rocksPassIntercepted,
       opponentPassErrors,
       rocksPassInterceptions,
+      passErrorCauses: {
+        passer: passErrorCauseCount('passer'),
+        receiver: passErrorCauseCount('receiver'),
+        both: passErrorCauseCount('both'),
+      },
     },
     impressions,
   }
@@ -468,6 +514,24 @@ export function buildPlayerStats(events, members) {
     const catches = count('catch_success')
     const hitReceived = count('hit_received')
     const defenseTotal = catches + hitReceived
+    const passErrorAsPasser = normalizedEvents.filter(
+      (event) => event.eventType === 'pass_error' && event.passerId === member.id,
+    )
+    const passErrorAsReceiver = normalizedEvents.filter(
+      (event) => event.eventType === 'pass_error' && event.receiverId === member.id,
+    )
+    const passerCauseErrors = passErrorAsPasser.filter(
+      (event) => event.passErrorCause === 'passer',
+    ).length
+    const receiverCauseErrors = passErrorAsReceiver.filter(
+      (event) => event.passErrorCause === 'receiver',
+    ).length
+    const bothCausePassErrors = normalizedEvents.filter(
+      (event) =>
+        event.eventType === 'pass_error' &&
+        event.passErrorCause === 'both' &&
+        (event.passerId === member.id || event.receiverId === member.id),
+    ).length
     const impressions = impressionEvents
       .map((item) => ({ ...item, count: count(item.eventType) }))
       .filter((item) => item.count > 0)
@@ -489,6 +553,11 @@ export function buildPlayerStats(events, members) {
       defenseTotal,
       catchRate: defenseTotal > 0 ? Math.round((catches / defenseTotal) * 100) : null,
       passErrors: count('pass_error'),
+      passErrorAsPasser: passErrorAsPasser.length,
+      passErrorAsReceiver: passErrorAsReceiver.length,
+      passerCauseErrors,
+      receiverCauseErrors,
+      bothCausePassErrors,
       passIntercepted: count('pass_intercepted'),
       passInterceptions: count('pass_interception'),
       lastPasses,

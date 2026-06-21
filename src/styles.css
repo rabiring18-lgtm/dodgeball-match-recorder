@@ -1074,6 +1074,7 @@ input:focus {
 .target-team-button,
 .target-none-button,
 .target-unknown-button,
+.target-cause-button,
 .target-cancel-button {
   min-height: 56px;
   border-radius: 8px;
@@ -1136,10 +1137,20 @@ input:focus {
   color: #fed7aa;
 }
 
+.target-cause-button {
+  border: 2px solid #f97316;
+  background: rgba(249, 115, 22, 0.18);
+  color: #fed7aa;
+}
+
 .target-cancel-button {
   border: 2px solid #64748b;
   background: transparent;
   color: #e2e8f0;
+}
+
+.single-action-row {
+  grid-template-columns: 1fr;
 }
 
 .zero-roster-modal {
