@@ -1142,6 +1142,62 @@ input:focus {
   color: #e2e8f0;
 }
 
+.zero-roster-modal {
+  width: min(640px, 100%);
+  text-align: center;
+}
+
+.zero-roster-modal h2 {
+  color: #ffffff;
+}
+
+.zero-roster-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  margin: 14px 0 18px;
+  color: #e2e8f0;
+  font-weight: 900;
+}
+
+.zero-roster-score strong {
+  color: #ffffff;
+  font-size: clamp(2.4rem, 8vw, 4.6rem);
+  line-height: 1;
+}
+
+.zero-roster-score span,
+.zero-roster-score b {
+  font-size: clamp(1rem, 3vw, 1.5rem);
+}
+
+.zero-roster-actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+.zero-roster-confirm,
+.zero-roster-back {
+  min-height: 72px;
+  border-radius: 8px;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.zero-roster-confirm {
+  border: 0;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.zero-roster-back {
+  border: 2px solid #64748b;
+  background: transparent;
+  color: #e2e8f0;
+}
+
 .player-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1464,7 +1520,8 @@ input:focus {
   .impression-grid,
   .compact-member-grid,
   .player-stats-grid,
-  .target-option-row {
+  .target-option-row,
+  .zero-roster-actions {
     grid-template-columns: 1fr;
   }
 

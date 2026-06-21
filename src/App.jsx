@@ -87,6 +87,8 @@ function App() {
   const [selectedSavedMatch, setSelectedSavedMatch] = useState(null)
   const [targetPicker, setTargetPicker] = useState(null)
   const [lastPassPicker, setLastPassPicker] = useState(null)
+  const [zeroRosterPrompt, setZeroRosterPrompt] = useState(null)
+  const [dismissedZeroRosterKey, setDismissedZeroRosterKey] = useState(null)
   const noticeTimerRef = useRef(null)
   const saveTimerRef = useRef(null)
   const importInputRef = useRef(null)
@@ -201,6 +203,39 @@ function App() {
 
     return () => window.clearInterval(timerId)
   }, [screen, activeMatch?.timerRunning])
+
+  useEffect(() => {
+    if (screen !== 'game' || !activeMatch) {
+      setZeroRosterPrompt(null)
+      setDismissedZeroRosterKey(null)
+      return
+    }
+
+    const members =
+      activeMatch.period === 'first_half'
+        ? activeMatch.firstHalfMembers
+        : activeMatch.secondHalfMembers
+    const periodEvents = getEventsForScope(activeMatch.events, activeMatch.period)
+    const score = getCurrentRosterScore(periodEvents, members.length)
+    const hasZeroRoster = score.rocks === 0 || score.opponent === 0
+
+    if (!hasZeroRoster) {
+      if (zeroRosterPrompt) setZeroRosterPrompt(null)
+      if (dismissedZeroRosterKey) setDismissedZeroRosterKey(null)
+      return
+    }
+
+    const key = createZeroRosterKey(activeMatch)
+    if (zeroRosterPrompt?.key === key || dismissedZeroRosterKey === key) {
+      return
+    }
+
+    setZeroRosterPrompt({
+      key,
+      period: activeMatch.period,
+      score,
+    })
+  }, [activeMatch, dismissedZeroRosterKey, screen, zeroRosterPrompt])
 
   useEffect(() => {
     return () => {
@@ -512,8 +547,8 @@ function App() {
     showNotice(`「${eventLabels[target.eventType]}」を削除しました`)
   }
 
-  function finishFirstHalf() {
-    if (!window.confirm('前半を終了してハーフタイム分析へ進みますか？')) return
+  function finishFirstHalf(options = {}) {
+    if (!options.skipConfirm && !window.confirm('前半を終了してハーフタイム分析へ進みますか？')) return
     updateActiveMatch((current) => ({
       ...recalculateAttackFlows(current, current.period, true),
       status: 'halftime',
@@ -524,6 +559,8 @@ function App() {
     }))
     setAnalysisMode('team')
     setIsOperationPanelOpen(false)
+    setZeroRosterPrompt(null)
+    setDismissedZeroRosterKey(null)
     setScreen('halftime')
   }
 
@@ -572,8 +609,8 @@ function App() {
     setScreen('setup')
   }
 
-  function finishMatch() {
-    if (!window.confirm('試合を終了して試合結果を表示しますか？')) return
+  function finishMatch(options = {}) {
+    if (!options.skipConfirm && !window.confirm('試合を終了して試合結果を表示しますか？')) return
     const completedBase = recalculateAttackFlows(
       activeMatch,
       activeMatch.period,
@@ -599,6 +636,8 @@ function App() {
     setActiveMatch(null)
     safeRemoveStorage(STORAGE_KEYS.activeMatch)
     setIsOperationPanelOpen(false)
+    setZeroRosterPrompt(null)
+    setDismissedZeroRosterKey(null)
     setScreen('result')
   }
 
@@ -781,7 +820,7 @@ function App() {
           match={activeMatch}
           members={gameMembers}
           operationPanelOpen={isOperationPanelOpen}
-          targetPickerOpen={Boolean(targetPicker || lastPassPicker)}
+          targetPickerOpen={Boolean(targetPicker || lastPassPicker || zeroRosterPrompt)}
           onToggleOperationPanel={() => setIsOperationPanelOpen(true)}
           onCloseOperationPanel={() => setIsOperationPanelOpen(false)}
           onToggleTimer={handleTimerToggle}
@@ -808,6 +847,22 @@ function App() {
             members={gameMembers}
             onSelect={commitAttackWithLastPass}
             onCancel={() => setLastPassPicker(null)}
+          />
+        )}
+        {zeroRosterPrompt && (
+          <ZeroRosterPrompt
+            prompt={zeroRosterPrompt}
+            onConfirm={() => {
+              if (zeroRosterPrompt.period === 'first_half') {
+                finishFirstHalf({ skipConfirm: true })
+              } else {
+                finishMatch({ skipConfirm: true })
+              }
+            }}
+            onBack={() => {
+              setDismissedZeroRosterKey(zeroRosterPrompt.key)
+              setZeroRosterPrompt(null)
+            }}
           />
         )}
         {notice && <div className="top-notice">{notice}</div>}
@@ -1221,6 +1276,7 @@ function GameScreen({
             key={value}
             type="button"
             onClick={() => onPossessionChange(value)}
+            disabled={targetPickerOpen}
           >
             <span>{match.currentPossession === value ? '●' : '○'}</span>
             {label}
@@ -1466,6 +1522,40 @@ function LastPassPicker({ attacker, members, onSelect, onCancel }) {
   )
 }
 
+function ZeroRosterPrompt({ prompt, onConfirm, onBack }) {
+  const isFirstHalf = prompt.period === 'first_half'
+  const actionLabel = isFirstHalf ? '前半終了' : '試合終了'
+  const leadText = getZeroRosterLeadText(prompt.score)
+  const questionText = isFirstHalf
+    ? '前半を終了しますか？'
+    : '試合を終了しますか？'
+
+  return (
+    <div className="target-overlay" role="presentation">
+      <section className="target-modal zero-roster-modal" role="dialog" aria-modal="true">
+        <p className="eyebrow">ROSTER CHECK</p>
+        <h2>{leadText}</h2>
+        <p>{questionText}</p>
+        <div className="zero-roster-score">
+          <span>ROCKS</span>
+          <strong>{prompt.score.rocks}</strong>
+          <b>－</b>
+          <strong>{prompt.score.opponent}</strong>
+          <span>相手</span>
+        </div>
+        <div className="zero-roster-actions">
+          <button className="zero-roster-confirm" type="button" onClick={onConfirm}>
+            {actionLabel}
+          </button>
+          <button className="zero-roster-back" type="button" onClick={onBack}>
+            記録へ戻る
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function AnalysisScreen({
   title,
   match,
@@ -1601,6 +1691,20 @@ function getOutPlayerIds(events, period) {
       )
       .map((event) => event.playerId),
   )
+}
+
+function createZeroRosterKey(match) {
+  return `${match.matchId}:${match.period}:zero-roster`
+}
+
+function getZeroRosterLeadText(score) {
+  if (score.rocks === 0 && score.opponent === 0) {
+    return '両チームの内野が0人になりました'
+  }
+  if (score.rocks === 0) {
+    return 'ROCKSの内野が0人になりました'
+  }
+  return '相手の内野が0人になりました'
 }
 
 function finalizePendingAttackFlow(match, period, nextAttackFlow) {
