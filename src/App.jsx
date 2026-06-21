@@ -18,7 +18,6 @@ import {
   getEventTargetLabel,
   getEventsForScope,
   getPlayersByIds,
-  getTeamImpressions,
   impressionEventTypes,
   impressionEvents,
   isRegisteredPlayer,
@@ -2210,14 +2209,13 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
       </div>
       <div className="stat-card">
         <h2>パス</h2>
-        <StatLine label="ROCKSパスミス数" value={stats.pass.rocksPassErrors} />
-        <StatLine label="投げ手原因" value={stats.pass.passErrorCauses.passer} />
-        <StatLine label="受け手原因" value={stats.pass.passErrorCauses.receiver} />
-        <StatLine label="両方原因" value={stats.pass.passErrorCauses.both} />
-        <StatLine label="ROCKSがパスカットされた数" value={stats.pass.rocksPassIntercepted} />
-        <StatLine label="相手パスミス数" value={stats.pass.opponentPassErrors} />
-        <StatLine label="ROCKSパスカット数" value={stats.pass.rocksPassInterceptions} />
-        <TeamImpressionBox events={events} />
+        <StatLine label="ラストパス" value={stats.pass.lastPasses} />
+        <StatLine label="ラストパス成功" value={stats.pass.lastPassHits} />
+        <StatLine
+          label="ラストパス成功率"
+          value={stats.pass.lastPassHitRate === null ? '－' : `${stats.pass.lastPassHitRate}%`}
+        />
+        <StatLine label="パスミス" value={stats.pass.rocksPassErrors} />
       </div>
       <div className="stat-card impressions">
         <h2>コーチ所感</h2>
@@ -2232,24 +2230,6 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
         ))}
       </div>
     </section>
-  )
-}
-
-function TeamImpressionBox({ events }) {
-  const teamImpressions = getTeamImpressions(events)
-  return (
-    <div className="team-impression-box">
-      <h3>チーム全体所感</h3>
-      {teamImpressions.length === 0 ? (
-        <p>記録なし</p>
-      ) : (
-        teamImpressions.map((item) => (
-          <span key={item.eventType}>
-            {item.label} {item.count}
-          </span>
-        ))
-      )}
-    </div>
   )
 }
 

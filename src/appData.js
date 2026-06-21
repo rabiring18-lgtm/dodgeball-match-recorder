@@ -432,6 +432,13 @@ export function buildStats(events) {
   const rocksPassIntercepted = count('pass_intercepted')
   const opponentPassErrors = count('opponent_pass_error')
   const rocksPassInterceptions = count('pass_interception')
+  const lastPassEvents = normalizedEvents.filter(
+    (event) => attackEventTypes.has(event.eventType) && event.lastPassScope === 'player',
+  )
+  const lastPasses = lastPassEvents.length
+  const lastPassHits = lastPassEvents.filter(
+    (event) => event.eventType === 'attack_hit',
+  ).length
   const passErrorCauseCount = (cause) =>
     normalizedEvents.filter(
       (event) => event.eventType === 'pass_error' && event.passErrorCause === cause,
@@ -467,6 +474,10 @@ export function buildStats(events) {
     },
     pass: {
       errors: rocksPassErrors,
+      lastPasses,
+      lastPassHits,
+      lastPassHitRate:
+        lastPasses > 0 ? Math.round((lastPassHits / lastPasses) * 100) : null,
       rocksPassErrors,
       rocksPassIntercepted,
       opponentPassErrors,
