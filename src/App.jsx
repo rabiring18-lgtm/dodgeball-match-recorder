@@ -87,6 +87,7 @@ function App() {
   const [targetPicker, setTargetPicker] = useState(null)
   const [lastPassPicker, setLastPassPicker] = useState(null)
   const [passErrorPicker, setPassErrorPicker] = useState(null)
+  const [editingEvent, setEditingEvent] = useState(null)
   const [zeroRosterPrompt, setZeroRosterPrompt] = useState(null)
   const [dismissedZeroRosterKey, setDismissedZeroRosterKey] = useState(null)
   const noticeTimerRef = useRef(null)
@@ -469,6 +470,77 @@ function App() {
     }
   }
 
+  function openEventEditor(event) {
+    if (targetPicker || lastPassPicker || passErrorPicker || zeroRosterPrompt) return
+    setEditingEvent(event)
+  }
+
+  function saveEditedEvent(eventId, updates) {
+    let savedLabel = ''
+    updateActiveMatch((current) => {
+      const target = current.events.find((event) => event.eventId === eventId)
+      if (!target) return current
+      savedLabel = eventLabels[target.eventType] || '記録'
+      const nextEvents = current.events.map((event) => {
+        if (event.eventId !== eventId) return event
+        const nextEvent = {
+          ...event,
+          ...updates,
+          eventId: event.eventId,
+          matchId: event.matchId,
+          eventType: event.eventType,
+          period: event.period,
+          possession: event.possession,
+          elapsedTime: event.elapsedTime,
+          remainingTime: event.remainingTime,
+          timestamp: event.timestamp,
+        }
+
+        if (
+          attackEventTypes.has(nextEvent.eventType) &&
+          nextEvent.lastPassScope === 'player' &&
+          nextEvent.lastPasserId === nextEvent.playerId
+        ) {
+          return {
+            ...nextEvent,
+            lastPasserId: null,
+            lastPasserNameSnapshot: null,
+            lastPassScope: 'unknown',
+          }
+        }
+
+        return nextEvent
+      })
+
+      return recalculateAttackFlows(
+        {
+          ...current,
+          events: nextEvents,
+        },
+        target.period,
+      )
+    })
+    setEditingEvent(null)
+    showNotice(`「${savedLabel}」を更新しました`)
+  }
+
+  function deleteEditingEvent() {
+    if (!editingEvent) return
+    if (!window.confirm(`「${eventLabels[editingEvent.eventType]}」を削除しますか？`)) return
+    const target = editingEvent
+    updateActiveMatch((current) =>
+      recalculateAttackFlows(
+        {
+          ...current,
+          events: current.events.filter((event) => event.eventId !== target.eventId),
+        },
+        target.period,
+      ),
+    )
+    setEditingEvent(null)
+    showNotice(`「${eventLabels[target.eventType]}」を削除しました`)
+  }
+
   function commitTargetedEvent(target) {
     if (!targetPicker || !activeMatch) return
     const { eventType, label } = targetPicker
@@ -589,7 +661,7 @@ function App() {
   }
 
   function undoLastEvent() {
-    if (!activeMatch?.events.length || targetPicker || lastPassPicker || passErrorPicker) return
+    if (!activeMatch?.events.length || targetPicker || lastPassPicker || passErrorPicker || editingEvent) return
     const lastEvent = activeMatch.events[activeMatch.events.length - 1]
     updateActiveMatch((current) =>
       recalculateAttackFlows(
@@ -604,7 +676,7 @@ function App() {
   }
 
   function deleteEvent(eventId) {
-    if (targetPicker || lastPassPicker || passErrorPicker) return
+    if (targetPicker || lastPassPicker || passErrorPicker || editingEvent) return
     const target = activeMatch?.events.find((event) => event.eventId === eventId)
     if (!target) return
     if (!window.confirm(`「${eventLabels[target.eventType]}」を削除しますか？`)) return
@@ -893,13 +965,14 @@ function App() {
           match={activeMatch}
           members={gameMembers}
           operationPanelOpen={isOperationPanelOpen}
-          targetPickerOpen={Boolean(targetPicker || lastPassPicker || passErrorPicker || zeroRosterPrompt)}
+          targetPickerOpen={Boolean(targetPicker || lastPassPicker || passErrorPicker || editingEvent || zeroRosterPrompt)}
           onToggleOperationPanel={() => setIsOperationPanelOpen(true)}
           onCloseOperationPanel={() => setIsOperationPanelOpen(false)}
           onToggleTimer={handleTimerToggle}
           onAdjustTime={adjustTime}
           onPossessionChange={setPossession}
           onRecord={openTargetPicker}
+          onEditEvent={openEventEditor}
           onUndo={undoLastEvent}
           onDeleteEvent={deleteEvent}
           onFinishFirstHalf={finishFirstHalf}
@@ -930,6 +1003,15 @@ function App() {
             onSelectReceiver={selectPassErrorReceiver}
             onSelectCause={commitPassError}
             onCancel={() => setPassErrorPicker(null)}
+          />
+        )}
+        {editingEvent && (
+          <EventEditor
+            event={editingEvent}
+            members={gameMembers}
+            onSave={saveEditedEvent}
+            onDelete={deleteEditingEvent}
+            onCancel={() => setEditingEvent(null)}
           />
         )}
         {zeroRosterPrompt && (
@@ -1307,6 +1389,7 @@ function GameScreen({
   onAdjustTime,
   onPossessionChange,
   onRecord,
+  onEditEvent,
   onUndo,
   onDeleteEvent,
   onFinishFirstHalf,
@@ -1411,7 +1494,19 @@ function GameScreen({
             <p className="empty-state">記録はまだありません</p>
           ) : (
             recentEvents.map((event) => (
-              <div className={`history-row ${getHistoryTone(event.eventType)}`} key={event.eventId}>
+              <div
+                className={`history-row ${getHistoryTone(event.eventType)}`}
+                key={event.eventId}
+                role="button"
+                tabIndex={0}
+                onClick={() => onEditEvent(event)}
+                onKeyDown={(keyEvent) => {
+                  if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+                    keyEvent.preventDefault()
+                    onEditEvent(event)
+                  }
+                }}
+              >
                 <span>{formatTime(event.remainingTime)}</span>
                 <strong>
                   {getHistoryTargetLabel(event) && (
@@ -1430,7 +1525,14 @@ function GameScreen({
                       </span>
                     ))}
                 </strong>
-                <button type="button" onClick={() => onDeleteEvent(event.eventId)} disabled={targetPickerOpen}>
+                <button
+                  type="button"
+                  onClick={(clickEvent) => {
+                    clickEvent.stopPropagation()
+                    onDeleteEvent(event.eventId)
+                  }}
+                  disabled={targetPickerOpen}
+                >
                   削除
                 </button>
               </div>
@@ -1691,6 +1793,269 @@ function PassErrorPicker({
         </div>
       </section>
     </div>
+  )
+}
+
+const simplePlayerEditEventTypes = new Set([
+  'catch_success',
+  'hit_received',
+  'pass_interception',
+  'pass_intercepted',
+  'line_cross',
+])
+
+function EventEditor({ event, members, onSave, onDelete, onCancel }) {
+  const [playerId, setPlayerId] = useState(Number.isInteger(event.playerId) ? event.playerId : null)
+  const [targetScope, setTargetScope] = useState(event.targetScope === 'player' ? 'player' : 'unknown')
+  const [lastPassScope, setLastPassScope] = useState(event.lastPassScope || 'unknown')
+  const [lastPasserId, setLastPasserId] = useState(
+    Number.isInteger(event.lastPasserId) ? event.lastPasserId : null,
+  )
+  const [passerId, setPasserId] = useState(
+    Number.isInteger(event.passerId)
+      ? event.passerId
+      : Number.isInteger(event.playerId)
+        ? event.playerId
+        : null,
+  )
+  const [receiverId, setReceiverId] = useState(Number.isInteger(event.receiverId) ? event.receiverId : null)
+  const [passErrorCause, setPassErrorCause] = useState(event.passErrorCause || '')
+  const isAttack = attackEventTypes.has(event.eventType)
+  const isPassError = event.eventType === 'pass_error'
+  const isSimplePlayerEdit = simplePlayerEditEventTypes.has(event.eventType)
+  const isReadOnly = event.eventType === 'overtime_violation' || event.eventType === 'opponent_pass_error'
+  const eventLabel = eventLabels[event.eventType] || event.eventType
+  const selectedPlayer = members.find((member) => member.id === playerId)
+  const selectedPasser = members.find((member) => member.id === passerId)
+  const selectedReceiver = members.find((member) => member.id === receiverId)
+  const selectedLastPasser = members.find((member) => member.id === lastPasserId)
+
+  function choosePlayer(member) {
+    setPlayerId(member.id)
+    setTargetScope('player')
+    if (isAttack && member.id === lastPasserId) {
+      setLastPassScope('unknown')
+      setLastPasserId(null)
+    }
+  }
+
+  function handleSave() {
+    if (isAttack) {
+      const playerUpdates =
+        targetScope === 'player' && selectedPlayer
+          ? {
+              targetScope: 'player',
+              playerId: selectedPlayer.id,
+              playerNameSnapshot: selectedPlayer.name,
+            }
+          : {
+              targetScope: 'unknown',
+              playerId: null,
+              playerNameSnapshot: '不明',
+            }
+      const lastPassUpdates =
+        lastPassScope === 'player' && selectedLastPasser
+          ? {
+              lastPassScope: 'player',
+              lastPasserId: selectedLastPasser.id,
+              lastPasserNameSnapshot: selectedLastPasser.name,
+            }
+          : {
+              lastPassScope,
+              lastPasserId: null,
+              lastPasserNameSnapshot: null,
+            }
+      onSave(event.eventId, { ...playerUpdates, ...lastPassUpdates })
+      return
+    }
+
+    if (isPassError && selectedPasser && selectedReceiver && passErrorCause) {
+      onSave(event.eventId, {
+        targetScope: 'player',
+        playerId: selectedPasser.id,
+        playerNameSnapshot: selectedPasser.name,
+        passerId: selectedPasser.id,
+        passerNameSnapshot: selectedPasser.name,
+        receiverId: selectedReceiver.id,
+        receiverNameSnapshot: selectedReceiver.name,
+        passErrorCause,
+      })
+      return
+    }
+
+    if (isSimplePlayerEdit) {
+      const updates =
+        targetScope === 'player' && selectedPlayer
+          ? {
+              targetScope: 'player',
+              playerId: selectedPlayer.id,
+              playerNameSnapshot: selectedPlayer.name,
+            }
+          : {
+              targetScope: 'unknown',
+              playerId: null,
+              playerNameSnapshot: '不明',
+            }
+      onSave(event.eventId, updates)
+    }
+  }
+
+  const canSave =
+    !isReadOnly &&
+    ((isAttack && (targetScope === 'unknown' || selectedPlayer)) ||
+      (isPassError && selectedPasser && selectedReceiver && selectedPasser.id !== selectedReceiver.id && passErrorCause) ||
+      (isSimplePlayerEdit && (targetScope === 'unknown' || selectedPlayer)))
+
+  return (
+    <div className="target-overlay" role="presentation">
+      <section className="target-modal event-editor-modal" role="dialog" aria-modal="true">
+        <p className="eyebrow">EDIT RECORD</p>
+        <h2>{eventLabel}を編集</h2>
+        <div className="event-edit-meta">
+          <span>記録時刻 {formatTime(event.remainingTime)}</span>
+          <span>{event.period === 'first_half' ? '前半' : '後半'}</span>
+        </div>
+        <p>現在: {getEventEditSummary(event)}</p>
+
+        {isAttack && (
+          <>
+            <EventEditSection title="アタックした選手">
+              <PlayerEditGrid
+                members={members}
+                selectedId={targetScope === 'player' ? playerId : null}
+                onSelect={choosePlayer}
+              />
+              <OptionButton selected={targetScope === 'unknown'} onClick={() => setTargetScope('unknown')}>
+                選手不明
+              </OptionButton>
+            </EventEditSection>
+            <EventEditSection title="ラストパス">
+              <PlayerEditGrid
+                members={members}
+                selectedId={lastPassScope === 'player' ? lastPasserId : null}
+                unavailableId={targetScope === 'player' ? playerId : null}
+                unavailableLabel="アタック選手"
+                onSelect={(member) => {
+                  setLastPassScope('player')
+                  setLastPasserId(member.id)
+                }}
+              />
+              <div className="target-option-row">
+                <OptionButton selected={lastPassScope === 'none'} onClick={() => setLastPassScope('none')}>
+                  パスなし
+                </OptionButton>
+                <OptionButton selected={lastPassScope === 'unknown'} onClick={() => setLastPassScope('unknown')}>
+                  不明
+                </OptionButton>
+              </div>
+            </EventEditSection>
+          </>
+        )}
+
+        {isPassError && (
+          <>
+            <EventEditSection title="投げ手">
+              <PlayerEditGrid members={members} selectedId={passerId} onSelect={(member) => setPasserId(member.id)} />
+            </EventEditSection>
+            <EventEditSection title="受け手">
+              <PlayerEditGrid
+                members={members}
+                selectedId={receiverId}
+                unavailableId={passerId}
+                unavailableLabel="投げ手"
+                onSelect={(member) => setReceiverId(member.id)}
+              />
+            </EventEditSection>
+            <EventEditSection title="原因">
+              <div className="target-option-row pass-cause-row">
+                <OptionButton selected={passErrorCause === 'passer'} onClick={() => setPassErrorCause('passer')}>
+                  投げ手
+                </OptionButton>
+                <OptionButton selected={passErrorCause === 'receiver'} onClick={() => setPassErrorCause('receiver')}>
+                  受け手
+                </OptionButton>
+                <OptionButton selected={passErrorCause === 'both'} onClick={() => setPassErrorCause('both')}>
+                  両方
+                </OptionButton>
+              </div>
+            </EventEditSection>
+          </>
+        )}
+
+        {isSimplePlayerEdit && (
+          <EventEditSection title="対象選手">
+            <PlayerEditGrid members={members} selectedId={targetScope === 'player' ? playerId : null} onSelect={choosePlayer} />
+            <OptionButton selected={targetScope === 'unknown'} onClick={() => setTargetScope('unknown')}>
+              選手不明
+            </OptionButton>
+          </EventEditSection>
+        )}
+
+        {isReadOnly && (
+          <p className="event-edit-readonly">この記録は選手情報を持ちません。削除のみ可能です。</p>
+        )}
+
+        <div className="event-edit-actions">
+          <button className="primary-button" type="button" onClick={handleSave} disabled={!canSave}>
+            変更を保存
+          </button>
+          <button className="target-cancel-button" type="button" onClick={onCancel}>
+            キャンセル
+          </button>
+          <button className="event-edit-delete-button" type="button" onClick={onDelete}>
+            この記録を削除
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function EventEditSection({ title, children }) {
+  return (
+    <section className="event-edit-section">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function PlayerEditGrid({ members, selectedId, unavailableId, unavailableLabel, onSelect }) {
+  return (
+    <div className="target-player-grid">
+      {members.map((member) => {
+        const isSelected = member.id === selectedId
+        const isUnavailable = Number.isInteger(unavailableId) && member.id === unavailableId
+        return (
+          <button
+            className={[
+              'target-player-button',
+              isSelected ? 'selected' : '',
+              isUnavailable ? 'unavailable' : '',
+            ].filter(Boolean).join(' ')}
+            disabled={isUnavailable}
+            key={member.id}
+            type="button"
+            onClick={() => onSelect(member)}
+          >
+            <span>{member.name}</span>
+            {isUnavailable && <small>{unavailableLabel}</small>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function OptionButton({ selected, onClick, children }) {
+  return (
+    <button
+      className={selected ? 'target-cause-button selected' : 'target-cause-button'}
+      type="button"
+      onClick={onClick}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -2116,6 +2481,22 @@ function getPassErrorCauseLabel(cause) {
   if (cause === 'receiver') return '受け手'
   if (cause === 'both') return '両方'
   return null
+}
+
+function getEventEditSummary(event) {
+  if (attackEventTypes.has(event.eventType)) {
+    return `${getEventTargetLabel(event)} / ラストパス: ${getLastPassLabel(event)}`
+  }
+  if (event.eventType === 'pass_error') {
+    const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '不明'
+    const receiverName = event.receiverNameSnapshot || '記録なし'
+    const causeLabel = getPassErrorCauseLabel(event.passErrorCause) || '記録なし'
+    return `投げ手: ${passerName} / 受け手: ${receiverName} / 原因: ${causeLabel}`
+  }
+  if (event.eventType === 'overtime_violation' || event.eventType === 'opponent_pass_error') {
+    return 'チーム記録'
+  }
+  return getEventTargetLabel(event)
 }
 
 function RosterTrendSection({ match, scope }) {

@@ -1057,6 +1057,12 @@ input:focus {
   padding-left: 8px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   border-left: 4px solid transparent;
+  cursor: pointer;
+}
+
+.history-row:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .history-row.success {
@@ -1409,6 +1415,13 @@ input:focus {
   color: #94a3b8;
 }
 
+.target-player-button.selected,
+.target-cause-button.selected {
+  border-color: #38bdf8;
+  background: #0ea5e9;
+  color: #ffffff;
+}
+
 .target-option-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1442,6 +1455,68 @@ input:focus {
 
 .single-action-row {
   grid-template-columns: 1fr;
+}
+
+.event-editor-modal {
+  max-height: min(92vh, 820px);
+  overflow: auto;
+}
+
+.event-edit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.event-edit-meta span {
+  padding: 5px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  color: #cbd5e1;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.event-edit-section {
+  margin-top: 14px;
+}
+
+.event-edit-section h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.event-edit-section > .target-cause-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.event-edit-readonly {
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.74);
+}
+
+.event-edit-actions {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.event-edit-actions button {
+  min-height: 56px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.event-edit-delete-button {
+  border: 2px solid rgba(249, 115, 22, 0.58);
+  background: rgba(249, 115, 22, 0.12);
+  color: #fed7aa;
 }
 
 .zero-roster-modal {
@@ -1807,6 +1882,7 @@ input:focus {
   .player-stats-grid,
   .summary-department-list,
   .target-option-row,
+  .event-edit-actions,
   .zero-roster-actions {
     grid-template-columns: 1fr;
   }
