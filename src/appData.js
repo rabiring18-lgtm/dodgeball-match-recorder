@@ -68,7 +68,7 @@ export const attackFlowLabels = {
   pending: '判定待ち',
   single: '単発',
   possession_continued: '攻撃権継続',
-  unknown: '不明',
+  unknown: '記録なし',
 }
 
 export const eventLabels = [
@@ -224,7 +224,7 @@ export function normalizeEvent(event) {
     : isPlay
       ? 'unknown'
       : 'unknown'
-  const defaultName = defaultScope === 'team' ? 'チーム全体' : '不明'
+  const defaultName = defaultScope === 'team' ? 'チーム全体' : '記録なし'
   const targetScope = ['player', 'team', 'unknown'].includes(source.targetScope)
     ? source.targetScope
     : defaultScope
@@ -249,18 +249,18 @@ export function normalizeEvent(event) {
     lastPasserId: Number.isInteger(source.lastPasserId) ? source.lastPasserId : null,
     lastPasserNameSnapshot:
       normalizeLastPassScope(eventType, source.lastPassScope) === 'player'
-        ? String(source.lastPasserNameSnapshot ?? '不明')
+        ? String(source.lastPasserNameSnapshot ?? '記録なし')
         : null,
     lastPassScope: normalizeLastPassScope(eventType, source.lastPassScope),
     passerId: passErrorPasserId,
     passerNameSnapshot:
       passErrorPasserId !== null
-        ? String(source.passerNameSnapshot ?? source.playerNameSnapshot ?? '不明')
+        ? String(source.passerNameSnapshot ?? source.playerNameSnapshot ?? '記録なし')
         : null,
     receiverId: isPassError && Number.isInteger(source.receiverId) ? source.receiverId : null,
     receiverNameSnapshot:
       isPassError && Number.isInteger(source.receiverId)
-        ? String(source.receiverNameSnapshot ?? '不明')
+        ? String(source.receiverNameSnapshot ?? '記録なし')
         : null,
     passErrorCause:
       isPassError && ['passer', 'receiver', 'both'].includes(source.passErrorCause)
@@ -387,7 +387,7 @@ export function createEvent(match, eventType, target = {}) {
       isTeamOnlyViolation
         ? null
         : target.playerNameSnapshot ??
-      (targetScope === 'team' ? 'チーム全体' : targetScope === 'unknown' ? '不明' : null),
+      (targetScope === 'team' ? 'チーム全体' : targetScope === 'unknown' ? '記録なし' : null),
     targetScope,
     attackFlow: normalizeAttackFlow(eventType, target.attackFlow),
     lastPasserId:
@@ -397,20 +397,20 @@ export function createEvent(match, eventType, target = {}) {
         : null,
     lastPasserNameSnapshot:
       normalizeLastPassScope(eventType, target.lastPassScope) === 'player'
-        ? String(target.lastPasserNameSnapshot ?? '不明')
+        ? String(target.lastPasserNameSnapshot ?? '記録なし')
         : null,
     lastPassScope: normalizeLastPassScope(eventType, target.lastPassScope),
     passerId:
       isPassError && Number.isInteger(target.passerId) ? target.passerId : null,
     passerNameSnapshot:
       isPassError && Number.isInteger(target.passerId)
-        ? String(target.passerNameSnapshot ?? target.playerNameSnapshot ?? '不明')
+        ? String(target.passerNameSnapshot ?? target.playerNameSnapshot ?? '記録なし')
         : null,
     receiverId:
       isPassError && Number.isInteger(target.receiverId) ? target.receiverId : null,
     receiverNameSnapshot:
       isPassError && Number.isInteger(target.receiverId)
-        ? String(target.receiverNameSnapshot ?? '不明')
+        ? String(target.receiverNameSnapshot ?? '記録なし')
         : null,
     passErrorCause:
       isPassError && ['passer', 'receiver', 'both'].includes(target.passErrorCause)
@@ -616,12 +616,12 @@ export function buildPlayerSummary(events, members = []) {
     const current = bucket.get(key) || {
       key,
       playerId: hasId ? id : null,
-      name: name || '不明',
+      name: name || '記録なし',
       count: 0,
     }
     bucket.set(key, {
       ...current,
-      name: current.name || name || '不明',
+      name: current.name || name || '記録なし',
       count: current.count + 1,
     })
   }
@@ -688,8 +688,8 @@ export function getEventTargetLabel(event) {
   if (normalizedEvent.targetScope === 'team') {
     return normalizedEvent.playerNameSnapshot || 'チーム全体'
   }
-  if (normalizedEvent.targetScope === 'unknown') return '選手不明'
-  return normalizedEvent.playerNameSnapshot || '選手不明'
+  if (normalizedEvent.targetScope === 'unknown') return '記録なし'
+  return normalizedEvent.playerNameSnapshot || '記録なし'
 }
 
 export function validateBackup(data) {

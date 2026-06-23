@@ -534,7 +534,7 @@ function App() {
             ...nextEvent,
             lastPasserId: null,
             lastPasserNameSnapshot: null,
-            lastPassScope: 'unknown',
+            lastPassScope: '',
           }
         }
 
@@ -1701,20 +1701,22 @@ function TargetPicker({ pending, members, outPlayerIds, onSelect, onCancel }) {
             )
           })}
         </div>
-        <div className="target-option-row">
-          <button
-            className="target-unknown-button"
-            type="button"
-            onClick={() =>
-              onSelect({
-                targetScope: 'unknown',
-                playerId: null,
-                playerNameSnapshot: '不明',
-              })
-            }
-          >
-            選手不明
-          </button>
+        <div className="target-option-row single-action-row">
+          {!attackEventTypes.has(pending.eventType) && (
+            <button
+              className="target-unknown-button"
+              type="button"
+              onClick={() =>
+                onSelect({
+                  targetScope: 'unknown',
+                  playerId: null,
+                  playerNameSnapshot: '記録なし',
+                })
+              }
+            >
+              対象未記録
+            </button>
+          )}
           <button className="target-cancel-button" type="button" onClick={onCancel}>
             キャンセル
           </button>
@@ -1730,7 +1732,7 @@ function LastPassPicker({ attacker, members, onSelect, onCancel }) {
       <section className="target-modal" role="dialog" aria-modal="true">
         <p className="eyebrow">LAST PASS</p>
         <h2>アタック前のラストパスは？</h2>
-        <p>パスを出した選手、パスなし、不明を選んでください</p>
+        <p>パスを出した選手、またはパスなしを選んでください</p>
         <div className="target-player-grid">
           {members.map((member) => {
             const isAttacker = member.id === attacker.playerId
@@ -1769,19 +1771,6 @@ function LastPassPicker({ attacker, members, onSelect, onCancel }) {
             }
           >
             パスなし
-          </button>
-          <button
-            className="target-unknown-button"
-            type="button"
-            onClick={() =>
-              onSelect({
-                lastPassScope: 'unknown',
-                lastPasserId: null,
-                lastPasserNameSnapshot: null,
-              })
-            }
-          >
-            不明
           </button>
           <button className="target-cancel-button" type="button" onClick={onCancel}>
             キャンセル
@@ -1891,8 +1880,16 @@ const simplePlayerEditEventTypes = new Set([
 
 function EventEditor({ event, members, onSave, onDelete, onCancel }) {
   const [playerId, setPlayerId] = useState(Number.isInteger(event.playerId) ? event.playerId : null)
-  const [targetScope, setTargetScope] = useState(event.targetScope === 'player' ? 'player' : 'unknown')
-  const [lastPassScope, setLastPassScope] = useState(event.lastPassScope || 'unknown')
+  const [targetScope, setTargetScope] = useState(
+    event.targetScope === 'player' || Number.isInteger(event.playerId)
+      ? 'player'
+      : 'unknown',
+  )
+  const [lastPassScope, setLastPassScope] = useState(
+    event.lastPassScope === 'player' || event.lastPassScope === 'none'
+      ? event.lastPassScope
+      : '',
+  )
   const [lastPasserId, setLastPasserId] = useState(
     Number.isInteger(event.lastPasserId) ? event.lastPasserId : null,
   )
@@ -1919,7 +1916,7 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
     setPlayerId(member.id)
     setTargetScope('player')
     if (isAttack && member.id === lastPasserId) {
-      setLastPassScope('unknown')
+      setLastPassScope('')
       setLastPasserId(null)
     }
   }
@@ -1936,7 +1933,7 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
           : {
               targetScope: 'unknown',
               playerId: null,
-              playerNameSnapshot: '不明',
+              playerNameSnapshot: '記録なし',
             }
       const lastPassUpdates =
         lastPassScope === 'player' && selectedLastPasser
@@ -1979,7 +1976,7 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
           : {
               targetScope: 'unknown',
               playerId: null,
-              playerNameSnapshot: '不明',
+              playerNameSnapshot: '記録なし',
             }
       onSave(event.eventId, updates)
     }
@@ -1987,7 +1984,7 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
 
   const canSave =
     !isReadOnly &&
-    ((isAttack && (targetScope === 'unknown' || selectedPlayer)) ||
+    ((isAttack && targetScope === 'player' && selectedPlayer && (lastPassScope === 'none' || (lastPassScope === 'player' && selectedLastPasser))) ||
       (isPassError && selectedPasser && selectedReceiver && selectedPasser.id !== selectedReceiver.id && passErrorCause) ||
       (isSimplePlayerEdit && (targetScope === 'unknown' || selectedPlayer)))
 
@@ -2010,9 +2007,6 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
                 selectedId={targetScope === 'player' ? playerId : null}
                 onSelect={choosePlayer}
               />
-              <OptionButton selected={targetScope === 'unknown'} onClick={() => setTargetScope('unknown')}>
-                選手不明
-              </OptionButton>
             </EventEditSection>
             <EventEditSection title="ラストパス">
               <PlayerEditGrid
@@ -2028,9 +2022,6 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
               <div className="target-option-row">
                 <OptionButton selected={lastPassScope === 'none'} onClick={() => setLastPassScope('none')}>
                   パスなし
-                </OptionButton>
-                <OptionButton selected={lastPassScope === 'unknown'} onClick={() => setLastPassScope('unknown')}>
-                  不明
                 </OptionButton>
               </div>
             </EventEditSection>
@@ -2071,7 +2062,7 @@ function EventEditor({ event, members, onSave, onDelete, onCancel }) {
           <EventEditSection title="対象選手">
             <PlayerEditGrid members={members} selectedId={targetScope === 'player' ? playerId : null} onSelect={choosePlayer} />
             <OptionButton selected={targetScope === 'unknown'} onClick={() => setTargetScope('unknown')}>
-              選手不明
+              対象未記録
             </OptionButton>
           </EventEditSection>
         )}
@@ -2642,16 +2633,16 @@ function getHistoryTargetLabel(event) {
 
 function getLastPassLabel(event) {
   if (event.lastPassScope === 'player') {
-    return event.lastPasserNameSnapshot || '不明'
+    return event.lastPasserNameSnapshot || '記録なし'
   }
   if (event.lastPassScope === 'none') {
     return 'なし'
   }
-  return '不明'
+  return '記録なし'
 }
 
 function getPassErrorHistoryLines(event) {
-  const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '不明'
+  const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '記録なし'
   const receiverName = event.receiverNameSnapshot
   const causeLabel = getPassErrorCauseLabel(event.passErrorCause)
 
@@ -2677,7 +2668,7 @@ function getEventEditSummary(event) {
     return `${getEventTargetLabel(event)} / ラストパス: ${getLastPassLabel(event)}`
   }
   if (event.eventType === 'pass_error') {
-    const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '不明'
+    const passerName = event.passerNameSnapshot || event.playerNameSnapshot || '記録なし'
     const receiverName = event.receiverNameSnapshot || '記録なし'
     const causeLabel = getPassErrorCauseLabel(event.passErrorCause) || '記録なし'
     return `投げ手: ${passerName} / 受け手: ${receiverName} / 原因: ${causeLabel}`
