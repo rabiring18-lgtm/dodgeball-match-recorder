@@ -1749,8 +1749,8 @@ function AnalysisScreen({
         </div>
       </header>
       <ModeTabs selectedMode={mode} onModeChange={onModeChange} />
-      <RosterTrendSection match={match} scope={scope} />
       <HalftimeGoalPanel match={match} />
+      <RosterTrendSection match={match} scope={scope} />
       <StatsView match={match} scope={scope} mode={mode} members={members} compactPlayer />
       <div className="analysis-actions">
         <button className="start-button" type="button" onClick={onPrimary}>
@@ -2268,7 +2268,7 @@ function getHalftimeGuidance(firstScore) {
           ? `後半は${allowedLoss}人差以内の負けなら勝利`
           : '後半は同点以上で勝利',
       details: [
-        `${firstDiff}人差で同点`,
+        `${firstDiff}人差で負けると同点`,
         `${firstDiff + 1}人差以上で負けると逆転される`,
       ],
     }
