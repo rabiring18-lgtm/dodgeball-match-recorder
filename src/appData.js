@@ -602,6 +602,7 @@ export function buildPlayerSummary(events, members = []) {
     lastPassHit: createBucket(),
     passError: createBucket(),
     passIntercepted: createBucket(),
+    lineCross: createBucket(),
   }
   const addCount = (bucket, id, snapshotName) => {
     const hasId = Number.isInteger(id)
@@ -645,6 +646,11 @@ export function buildPlayerSummary(events, members = []) {
       return
     }
 
+    if (event.eventType === 'line_cross') {
+      addCount(buckets.lineCross, event.playerId, event.playerNameSnapshot)
+      return
+    }
+
     if (event.eventType === 'pass_error') {
       if (event.passErrorCause === 'passer') {
         addCount(buckets.passError, event.passerId, event.passerNameSnapshot)
@@ -668,6 +674,7 @@ export function buildPlayerSummary(events, members = []) {
     review: [
       { key: 'passError', label: 'パスミス', players: ranked(buckets.passError) },
       { key: 'passIntercepted', label: 'パスカットされた', players: ranked(buckets.passIntercepted) },
+      { key: 'lineCross', label: 'ラインクロス', players: ranked(buckets.lineCross) },
     ],
   }
 }

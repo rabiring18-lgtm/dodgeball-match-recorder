@@ -2326,6 +2326,7 @@ function PlayerStatsView({ events, members, compact = false }) {
             {!compact && <StatLine label="両方原因関与" value={player.bothCausePassErrors} />}
             <StatLine label="パスカットされた" value={player.passIntercepted} tone={player.passIntercepted > 0 ? 'caution' : undefined} />
             {!compact && <StatLine label="パスカット" value={player.passInterceptions} />}
+            <StatLine label="ラインクロス" value={player.lineCrosses} tone={player.lineCrosses > 0 ? 'caution' : undefined} />
             <StatLine label="ラストパス" value={player.lastPasses} />
             <StatLine label="ラストパス成功" value={player.lastPassHits} rank={rankMaps.lastPassHits.get(player.id)} />
             {!compact && (
