@@ -1719,6 +1719,33 @@ input:focus {
   color: #cbd5e1;
 }
 
+.result-record-review {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.record-period-tabs {
+  margin-top: 10px;
+}
+
+.result-record-list {
+  display: grid;
+  gap: 4px;
+  max-height: min(48vh, 520px);
+  margin-top: 12px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.result-history-row {
+  grid-template-columns: 72px 1fr 76px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 .saved-match-list {
   margin-top: 14px;
 }

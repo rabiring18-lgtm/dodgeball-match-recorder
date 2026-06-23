@@ -82,6 +82,8 @@ function App() {
   const [isOperationPanelOpen, setIsOperationPanelOpen] = useState(false)
   const [selectedResultScope, setSelectedResultScope] = useState('all')
   const [selectedResultMode, setSelectedResultMode] = useState('team')
+  const [isResultRecordListOpen, setIsResultRecordListOpen] = useState(false)
+  const [selectedResultRecordPeriod, setSelectedResultRecordPeriod] = useState('first_half')
   const [analysisMode, setAnalysisMode] = useState('team')
   const [selectedSavedMatch, setSelectedSavedMatch] = useState(null)
   const [targetPicker, setTargetPicker] = useState(null)
@@ -475,13 +477,40 @@ function App() {
     setEditingEvent(event)
   }
 
+  function updateResultMatchEvents(targetEvent, updater) {
+    const sourceMatch = displayedResultMatch
+    if (!sourceMatch || !targetEvent) return
+    const updated = recalculateAttackFlows(
+      {
+        ...sourceMatch,
+        events: updater(sourceMatch.events),
+        updatedAt: Date.now(),
+      },
+      targetEvent.period,
+      sourceMatch.status === 'completed',
+    )
+
+    setResultMatch((current) =>
+      current?.matchId === updated.matchId ? updated : current,
+    )
+    setSelectedSavedMatch((current) =>
+      current?.matchId === updated.matchId ? updated : current,
+    )
+    setSavedMatches((current) =>
+      current.map((match) => (match.matchId === updated.matchId ? updated : match)),
+    )
+  }
+
   function saveEditedEvent(eventId, updates) {
     let savedLabel = ''
-    updateActiveMatch((current) => {
-      const target = current.events.find((event) => event.eventId === eventId)
-      if (!target) return current
-      savedLabel = eventLabels[target.eventType] || '記録'
-      const nextEvents = current.events.map((event) => {
+    const target =
+      screen === 'result'
+        ? displayedResultMatch?.events.find((event) => event.eventId === eventId)
+        : activeMatch?.events.find((event) => event.eventId === eventId)
+    if (!target) return
+
+    const updateEvents = (events) =>
+      events.map((event) => {
         if (event.eventId !== eventId) return event
         const nextEvent = {
           ...event,
@@ -512,6 +541,20 @@ function App() {
         return nextEvent
       })
 
+    savedLabel = eventLabels[target.eventType] || '記録'
+
+    if (screen === 'result') {
+      updateResultMatchEvents(target, updateEvents)
+      setEditingEvent(null)
+      showNotice(`「${savedLabel}」を更新しました`)
+      return
+    }
+
+    updateActiveMatch((current) => {
+      const target = current.events.find((event) => event.eventId === eventId)
+      if (!target) return current
+      const nextEvents = updateEvents(current.events)
+
       return recalculateAttackFlows(
         {
           ...current,
@@ -528,6 +571,15 @@ function App() {
     if (!editingEvent) return
     if (!window.confirm(`「${eventLabels[editingEvent.eventType]}」を削除しますか？`)) return
     const target = editingEvent
+    if (screen === 'result') {
+      updateResultMatchEvents(target, (events) =>
+        events.filter((event) => event.eventId !== target.eventId),
+      )
+      setEditingEvent(null)
+      showNotice(`「${eventLabels[target.eventType]}」を削除しました`)
+      return
+    }
+
     updateActiveMatch((current) =>
       recalculateAttackFlows(
         {
@@ -677,9 +729,17 @@ function App() {
 
   function deleteEvent(eventId) {
     if (targetPicker || lastPassPicker || passErrorPicker || editingEvent) return
-    const target = activeMatch?.events.find((event) => event.eventId === eventId)
+    const sourceMatch = screen === 'result' ? displayedResultMatch : activeMatch
+    const target = sourceMatch?.events.find((event) => event.eventId === eventId)
     if (!target) return
     if (!window.confirm(`「${eventLabels[target.eventType]}」を削除しますか？`)) return
+    if (screen === 'result') {
+      updateResultMatchEvents(target, (events) =>
+        events.filter((event) => event.eventId !== eventId),
+      )
+      showNotice(`「${eventLabels[target.eventType]}」を削除しました`)
+      return
+    }
     updateActiveMatch((current) =>
       recalculateAttackFlows(
         {
@@ -778,6 +838,8 @@ function App() {
     setResultMatch(completed)
     setSelectedResultScope('all')
     setSelectedResultMode('team')
+    setIsResultRecordListOpen(false)
+    setSelectedResultRecordPeriod('first_half')
     setActiveMatch(null)
     safeRemoveStorage(STORAGE_KEYS.activeMatch)
     setIsOperationPanelOpen(false)
@@ -794,6 +856,8 @@ function App() {
     setSelectedSavedMatch(null)
     setSelectedResultScope('all')
     setSelectedResultMode('team')
+    setIsResultRecordListOpen(false)
+    setSelectedResultRecordPeriod('first_half')
     safeRemoveStorage(STORAGE_KEYS.activeMatch)
     setScreen('setup')
   }
@@ -903,6 +967,8 @@ function App() {
         setResultMatch(match)
         setSelectedResultScope('all')
         setSelectedResultMode('team')
+        setIsResultRecordListOpen(false)
+        setSelectedResultRecordPeriod('first_half')
         setScreen('result')
         setIsDataPanelOpen(false)
       }}
@@ -1066,11 +1132,30 @@ function App() {
           match={displayedResultMatch}
           selectedScope={selectedResultScope}
           selectedMode={selectedResultMode}
+          isRecordListOpen={isResultRecordListOpen}
+          selectedRecordPeriod={selectedResultRecordPeriod}
           onScopeChange={setSelectedResultScope}
           onModeChange={setSelectedResultMode}
+          onToggleRecordList={() => setIsResultRecordListOpen((current) => !current)}
+          onRecordPeriodChange={setSelectedResultRecordPeriod}
+          onEditEvent={openEventEditor}
+          onDeleteEvent={deleteEvent}
           onNewMatch={newMatch}
           onOpenData={() => setIsDataPanelOpen(true)}
         />
+        {editingEvent && (
+          <EventEditor
+            event={editingEvent}
+            members={
+              editingEvent.period === 'first_half'
+                ? displayedResultMatch.firstHalfMembers
+                : displayedResultMatch.secondHalfMembers
+            }
+            onSave={saveEditedEvent}
+            onDelete={deleteEditingEvent}
+            onCancel={() => setEditingEvent(null)}
+          />
+        )}
         {notice && <div className="top-notice">{notice}</div>}
         {saveNotice && <div className="save-toast">{saveNotice}</div>}
         {sharedPanel}
@@ -2133,8 +2218,14 @@ function ResultScreen({
   match,
   selectedScope,
   selectedMode,
+  isRecordListOpen,
+  selectedRecordPeriod,
   onScopeChange,
   onModeChange,
+  onToggleRecordList,
+  onRecordPeriodChange,
+  onEditEvent,
+  onDeleteEvent,
   onNewMatch,
   onOpenData,
 }) {
@@ -2149,6 +2240,9 @@ function ResultScreen({
           <p>ROCKS vs {match.opponentName}</p>
         </div>
         <div className="header-actions">
+          <button className="secondary-button" type="button" onClick={onToggleRecordList}>
+            記録を確認・修正
+          </button>
           <button className="secondary-button" type="button" onClick={onOpenData}>
             データ管理
           </button>
@@ -2164,6 +2258,15 @@ function ResultScreen({
         <span>後半メンバー: {match.secondHalfMembers.map((member) => member.name).join('、')}</span>
       </div>
       <MatchRosterResult match={match} />
+      {isRecordListOpen && (
+        <ResultRecordReview
+          match={match}
+          selectedPeriod={selectedRecordPeriod}
+          onPeriodChange={onRecordPeriodChange}
+          onEditEvent={onEditEvent}
+          onDeleteEvent={onDeleteEvent}
+        />
+      )}
       <div className="scope-tabs">
         {scopeTabs.map(([value, label]) => (
           <button
@@ -2188,6 +2291,92 @@ function ResultScreen({
         </button>
       </div>
     </main>
+  )
+}
+
+function ResultRecordReview({
+  match,
+  selectedPeriod,
+  onPeriodChange,
+  onEditEvent,
+  onDeleteEvent,
+}) {
+  const events = getEventsForScope(match.events || [], selectedPeriod)
+    .sort((a, b) => (a.elapsedTime ?? 0) - (b.elapsedTime ?? 0) || (a.timestamp ?? 0) - (b.timestamp ?? 0))
+
+  return (
+    <section className="result-record-review">
+      <div className="section-heading compact">
+        <div>
+          <p className="eyebrow">RECORD REVIEW</p>
+          <h2>記録を確認・修正</h2>
+        </div>
+      </div>
+      <div className="scope-tabs record-period-tabs">
+        {[
+          ['first_half', '前半'],
+          ['second_half', '後半'],
+        ].map(([value, label]) => (
+          <button
+            className={selectedPeriod === value ? 'selected' : ''}
+            key={value}
+            type="button"
+            onClick={() => onPeriodChange(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="result-record-list">
+        {events.length === 0 ? (
+          <p className="empty-state">記録はありません</p>
+        ) : (
+          events.map((event) => (
+            <div
+              className={`history-row result-history-row ${getHistoryTone(event.eventType)}`}
+              key={event.eventId}
+              role="button"
+              tabIndex={0}
+              onClick={() => onEditEvent(event)}
+              onKeyDown={(keyEvent) => {
+                if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+                  keyEvent.preventDefault()
+                  onEditEvent(event)
+                }
+              }}
+            >
+              <span>{formatTime(event.remainingTime)}</span>
+              <strong>
+                {getHistoryTargetLabel(event) && (
+                  <span className="history-target">{getHistoryTargetLabel(event)}</span>
+                )}
+                {getHistoryEventLabel(event)}
+                {attackEventTypes.has(event.eventType) && (
+                  <span className="history-subline">
+                    ラストパス: {getLastPassLabel(event)}
+                  </span>
+                )}
+                {event.eventType === 'pass_error' &&
+                  getPassErrorHistoryLines(event).map((line) => (
+                    <span className="history-subline" key={line}>
+                      {line}
+                    </span>
+                  ))}
+              </strong>
+              <button
+                type="button"
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation()
+                  onDeleteEvent(event.eventId)
+                }}
+              >
+                削除
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   )
 }
 
