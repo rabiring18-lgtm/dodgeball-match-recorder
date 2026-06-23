@@ -789,6 +789,129 @@ input:focus {
   line-height: 1;
 }
 
+.second-half-outlook,
+.match-goal-card,
+.match-roster-result {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.second-half-outlook {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+  gap: 12px;
+}
+
+.outlook-score-grid,
+.result-score-lines {
+  display: grid;
+  gap: 6px;
+}
+
+.roster-score-line {
+  display: grid;
+  grid-template-columns: 52px minmax(54px, 1fr) auto auto auto minmax(44px, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: #cbd5e1;
+  font-weight: 900;
+}
+
+.roster-score-line.no-label {
+  grid-template-columns: minmax(54px, 1fr) auto auto auto minmax(44px, 1fr);
+}
+
+.roster-score-line strong {
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster-score-line em {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+.roster-score-line.strong {
+  color: #bae6fd;
+}
+
+.outlook-message-grid {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  color: #e2e8f0;
+}
+
+.outlook-message-grid strong,
+.goal-main,
+.goal-status,
+.result-verdict {
+  color: #ffffff;
+  font-size: clamp(1.25rem, 2.8vw, 1.75rem);
+  font-weight: 950;
+}
+
+.outlook-message-grid span,
+.goal-guidance span {
+  color: #cbd5e1;
+  font-weight: 850;
+}
+
+.match-goal-card {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.85fr) minmax(0, 1.15fr);
+  gap: 14px;
+}
+
+.match-goal-card h2,
+.match-roster-result h2,
+.goal-guidance h3 {
+  margin: 0 0 8px;
+}
+
+.goal-status {
+  display: block;
+  margin-top: 8px;
+}
+
+.goal-guidance {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.goal-main {
+  margin: 0;
+  color: #bbf7d0;
+}
+
+.match-roster-result {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1fr) minmax(120px, auto);
+  align-items: center;
+  gap: 12px;
+}
+
+.result-verdict {
+  justify-self: end;
+}
+
+.result-verdict.win {
+  color: #bbf7d0;
+}
+
+.result-verdict.loss {
+  color: #fed7aa;
+}
+
+.result-verdict.draw {
+  color: #bae6fd;
+}
+
 .ball-toggle.large {
   margin-top: 10px;
 }
@@ -1518,6 +1641,16 @@ input:focus {
 
   .summary-department-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .second-half-outlook,
+  .match-goal-card,
+  .match-roster-result {
+    grid-template-columns: 1fr;
+  }
+
+  .result-verdict {
+    justify-self: start;
   }
 
   .roster-trend-layout.all {

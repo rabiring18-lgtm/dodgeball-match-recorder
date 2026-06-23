@@ -1349,6 +1349,10 @@ function GameScreen({
         <span>相手</span>
       </section>
 
+      {match.period === 'second_half' && (
+        <SecondHalfGoalPanel match={match} secondScore={rosterScore} />
+      )}
+
       <section className="ball-toggle large">
         {[
           ['rocks', 'ROCKSボール'],
@@ -1746,6 +1750,7 @@ function AnalysisScreen({
       </header>
       <ModeTabs selectedMode={mode} onModeChange={onModeChange} />
       <RosterTrendSection match={match} scope={scope} />
+      <HalftimeGoalPanel match={match} />
       <StatsView match={match} scope={scope} mode={mode} members={members} compactPlayer />
       <div className="analysis-actions">
         <button className="start-button" type="button" onClick={onPrimary}>
@@ -1793,6 +1798,7 @@ function ResultScreen({
         <span>前半メンバー: {match.firstHalfMembers.map((member) => member.name).join('、')}</span>
         <span>後半メンバー: {match.secondHalfMembers.map((member) => member.name).join('、')}</span>
       </div>
+      <MatchRosterResult match={match} />
       <div className="scope-tabs">
         {scopeTabs.map(([value, label]) => (
           <button
@@ -1817,6 +1823,87 @@ function ResultScreen({
         </button>
       </div>
     </main>
+  )
+}
+
+function HalftimeGoalPanel({ match }) {
+  const firstScore = getPeriodRosterScore(match, 'first_half')
+  const guidance = getHalftimeGuidance(firstScore)
+
+  return (
+    <section className="match-goal-card halftime-goal">
+      <div>
+        <p className="eyebrow">HALFTIME TARGET</p>
+        <h2>前半結果</h2>
+        <RosterScoreLine label="" score={firstScore} />
+        {guidance.status && <strong className="goal-status">{guidance.status}</strong>}
+      </div>
+      <div className="goal-guidance">
+        <h3>{guidance.heading}</h3>
+        <p className="goal-main">{guidance.main}</p>
+        {guidance.details.map((detail) => (
+          <span key={detail}>{detail}</span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function SecondHalfGoalPanel({ match, secondScore }) {
+  const firstScore = getPeriodRosterScore(match, 'first_half')
+  const outlook = getSecondHalfOutlook(firstScore, secondScore)
+
+  return (
+    <section className="second-half-outlook">
+      <div className="outlook-score-grid">
+        <RosterScoreLine label="前半" score={firstScore} />
+        <RosterScoreLine label="後半" score={secondScore} />
+        <RosterScoreLine label="合計" score={outlook.totalScore} strong />
+      </div>
+      <div className="outlook-message-grid">
+        <strong>{outlook.status}</strong>
+        {outlook.clinch && <span>{outlook.clinch}</span>}
+        <span>{outlook.allowableHits}</span>
+      </div>
+    </section>
+  )
+}
+
+function MatchRosterResult({ match }) {
+  const result = getMatchRosterResult(match)
+
+  return (
+    <section className="match-roster-result">
+      <div>
+        <p className="eyebrow">REMAINING PLAYERS</p>
+        <h2>残り内野人数</h2>
+      </div>
+      <div className="result-score-lines">
+        <RosterScoreLine label="前半" score={result.firstScore} />
+        <RosterScoreLine label="後半" score={result.secondScore} />
+        <RosterScoreLine label="合計" score={result.totalScore} strong />
+      </div>
+      <strong className={`result-verdict ${result.verdictTone}`}>{result.verdict}</strong>
+    </section>
+  )
+}
+
+function RosterScoreLine({ label, score, strong = false }) {
+  const className = [
+    'roster-score-line',
+    strong ? 'strong' : '',
+    label ? '' : 'no-label',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div className={className}>
+      {label && <span>{label}</span>}
+      <b>ROCKS</b>
+      <strong>{score.rocks}</strong>
+      <em>－</em>
+      <strong>{score.opponent}</strong>
+      <b>相手</b>
+    </div>
   )
 }
 
@@ -2139,6 +2226,104 @@ function getCurrentRosterScore(events, startCount) {
     .filter((event) => event.eventType === 'attack_hit' || event.eventType === 'hit_received')
     .sort((a, b) => (a.elapsedTime ?? 0) - (b.elapsedTime ?? 0) || (a.timestamp ?? 0) - (b.timestamp ?? 0))
     .reduce((score, event) => applyRosterEvent(score, event), createInitialRosterScore(startCount))
+}
+
+function getPeriodRosterScore(match, period) {
+  const members = period === 'first_half' ? match.firstHalfMembers : match.secondHalfMembers
+  return getCurrentRosterScore(getEventsForScope(match.events || [], period), members.length)
+}
+
+function getMatchRosterResult(match) {
+  const firstScore = getPeriodRosterScore(match, 'first_half')
+  const secondScore = getPeriodRosterScore(match, 'second_half')
+  const totalScore = addRosterScores(firstScore, secondScore)
+  const diff = totalScore.rocks - totalScore.opponent
+
+  return {
+    firstScore,
+    secondScore,
+    totalScore,
+    verdict: diff > 0 ? 'ROCKS勝利' : diff < 0 ? '相手勝利' : '同点',
+    verdictTone: diff > 0 ? 'win' : diff < 0 ? 'loss' : 'draw',
+  }
+}
+
+function addRosterScores(firstScore, secondScore) {
+  return {
+    rocks: firstScore.rocks + secondScore.rocks,
+    opponent: firstScore.opponent + secondScore.opponent,
+  }
+}
+
+function getHalftimeGuidance(firstScore) {
+  const firstDiff = firstScore.rocks - firstScore.opponent
+
+  if (firstDiff > 0) {
+    const allowedLoss = firstDiff - 1
+    return {
+      status: `現在${firstDiff}人リード`,
+      heading: '後半の目安',
+      main:
+        allowedLoss > 0
+          ? `後半は${allowedLoss}人差以内の負けなら勝利`
+          : '後半は同点以上で勝利',
+      details: [
+        `${firstDiff}人差で同点`,
+        `${firstDiff + 1}人差以上で負けると逆転される`,
+      ],
+    }
+  }
+
+  if (firstDiff < 0) {
+    const neededWin = Math.abs(firstDiff) + 1
+    return {
+      status: `現在${Math.abs(firstDiff)}人ビハインド`,
+      heading: '後半の目標',
+      main: `後半は${neededWin}人差以上で勝てば逆転`,
+      details: [`${Math.abs(firstDiff)}人差で同点`],
+    }
+  }
+
+  return {
+    status: '',
+    heading: '後半の目標',
+    main: '後半は1人差以上で勝てば勝利',
+    details: [],
+  }
+}
+
+function getSecondHalfOutlook(firstScore, secondScore) {
+  const totalScore = addRosterScores(firstScore, secondScore)
+  const totalDiff = totalScore.rocks - totalScore.opponent
+  const status =
+    totalDiff < 0
+      ? `逆転まで あと${totalScore.opponent - totalScore.rocks + 1}人`
+      : totalDiff === 0
+        ? '勝ち越しまで あと1人'
+        : `現在${totalDiff}人リード`
+  const clinchNeed = firstScore.opponent + secondScore.opponent - firstScore.rocks + 1
+  const canClinch = clinchNeed > 0 && clinchNeed <= secondScore.opponent
+  const clinch =
+    firstScore.rocks > firstScore.opponent + secondScore.opponent
+      ? '勝利確定'
+      : canClinch
+        ? `勝利確定まで あと${clinchNeed}人`
+        : ''
+  const rawAllowableHits = firstScore.rocks + secondScore.rocks - firstScore.opponent - 1
+  const allowableHits = Math.min(secondScore.rocks, Math.max(0, rawAllowableHits))
+  const allowableMessage =
+    rawAllowableHits < 0
+      ? '逆転不能'
+      : allowableHits === 0
+        ? '次に当てられると逆転不能'
+        : `許容被ヒット あと${allowableHits}人`
+
+  return {
+    totalScore,
+    status,
+    clinch,
+    allowableHits: allowableMessage,
+  }
 }
 
 function createInitialRosterScore(startCount) {
