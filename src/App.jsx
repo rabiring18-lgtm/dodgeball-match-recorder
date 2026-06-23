@@ -84,6 +84,8 @@ function App() {
   const [selectedResultMode, setSelectedResultMode] = useState('team')
   const [isResultRecordListOpen, setIsResultRecordListOpen] = useState(false)
   const [selectedResultRecordPeriod, setSelectedResultRecordPeriod] = useState('first_half')
+  const [isPdfRendering, setIsPdfRendering] = useState(false)
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
   const [analysisMode, setAnalysisMode] = useState('team')
   const [selectedSavedMatch, setSelectedSavedMatch] = useState(null)
   const [targetPicker, setTargetPicker] = useState(null)
@@ -95,6 +97,7 @@ function App() {
   const noticeTimerRef = useRef(null)
   const saveTimerRef = useRef(null)
   const importInputRef = useRef(null)
+  const pdfReportRef = useRef(null)
   const didSaveOnceRef = useRef({
     players: false,
     matchSetup: false,
@@ -959,6 +962,100 @@ function App() {
     setSelectedSavedMatch(null)
   }
 
+  async function exportResultPdf() {
+    if (!displayedResultMatch || isPdfGenerating) return
+    setIsPdfGenerating(true)
+    setIsPdfRendering(true)
+
+    try {
+      await waitForRenderFrame()
+      const reportElement = pdfReportRef.current
+      const pages = Array.from(reportElement?.querySelectorAll('.pdf-page') || [])
+      if (!pages.length) {
+        throw new Error('PDF report pages were not rendered')
+      }
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+
+      for (let index = 0; index < pages.length; index += 1) {
+        const canvas = await html2canvas(pages[index], {
+          backgroundColor: '#f8fafc',
+          scale: Math.min(2, window.devicePixelRatio || 1),
+          useCORS: true,
+        })
+        const imageData = canvas.toDataURL('image/jpeg', 0.92)
+        if (index > 0) pdf.addPage()
+        pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, pageHeight)
+      }
+
+      const fileName = getPdfFileName(displayedResultMatch)
+      const blob = pdf.output('blob')
+      await shareOrDownloadPdf(blob, fileName)
+    } catch (error) {
+      console.error('PDF export failed', error)
+      showNotice('PDFを作成できませんでした。もう一度お試しください。')
+    } finally {
+      setIsPdfRendering(false)
+      setIsPdfGenerating(false)
+    }
+  }
+
+  function waitForRenderFrame() {
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(resolve)
+      })
+    })
+  }
+
+  async function shareOrDownloadPdf(blob, fileName) {
+    const file =
+      typeof File !== 'undefined'
+        ? new File([blob], fileName, { type: 'application/pdf' })
+        : null
+    if (
+      file &&
+      isAppleMobileDevice() &&
+      navigator.canShare?.({ files: [file] }) &&
+      navigator.share
+    ) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'ROCKS 試合レポート',
+          text: `${displayedResultMatch.opponentName}戦の試合レポートです。`,
+        })
+        return
+      } catch (error) {
+        if (error?.name === 'AbortError') return
+        throw error
+      }
+    }
+
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function isAppleMobileDevice() {
+    const platform = navigator.platform || ''
+    const userAgent = navigator.userAgent || ''
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+    const isIPadOSDesktopMode =
+      platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1
+
+    return isIOS || isIPadOSDesktopMode
+  }
+
   const sharedPanel = (
     <DataPanel
       isOpen={isDataPanelOpen}
@@ -1142,15 +1239,20 @@ function App() {
           selectedMode={selectedResultMode}
           isRecordListOpen={isResultRecordListOpen}
           selectedRecordPeriod={selectedResultRecordPeriod}
+          isPdfGenerating={isPdfGenerating}
           onScopeChange={setSelectedResultScope}
           onModeChange={setSelectedResultMode}
           onToggleRecordList={() => setIsResultRecordListOpen((current) => !current)}
           onRecordPeriodChange={setSelectedResultRecordPeriod}
           onEditEvent={openEventEditor}
           onDeleteEvent={deleteEvent}
+          onExportPdf={exportResultPdf}
           onNewMatch={newMatch}
           onOpenData={() => setIsDataPanelOpen(true)}
         />
+        {isPdfRendering && (
+          <PdfReportHost match={displayedResultMatch} reportRef={pdfReportRef} />
+        )}
         {editingEvent && (
           <EventEditor
             event={editingEvent}
@@ -2219,12 +2321,14 @@ function ResultScreen({
   selectedMode,
   isRecordListOpen,
   selectedRecordPeriod,
+  isPdfGenerating,
   onScopeChange,
   onModeChange,
   onToggleRecordList,
   onRecordPeriodChange,
   onEditEvent,
   onDeleteEvent,
+  onExportPdf,
   onNewMatch,
   onOpenData,
 }) {
@@ -2241,6 +2345,14 @@ function ResultScreen({
         <div className="header-actions">
           <button className="secondary-button" type="button" onClick={onToggleRecordList}>
             記録を確認・修正
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onExportPdf}
+            disabled={isPdfGenerating}
+          >
+            {isPdfGenerating ? 'PDFを作成しています…' : 'PDF出力・共有'}
           </button>
           <button className="secondary-button" type="button" onClick={onOpenData}>
             データ管理
@@ -2377,6 +2489,268 @@ function ResultRecordReview({
       </div>
     </section>
   )
+}
+
+function PdfReportHost({ match, reportRef }) {
+  return (
+    <div className="pdf-report-host" aria-hidden="true">
+      <PdfReport match={match} reportRef={reportRef} />
+    </div>
+  )
+}
+
+function PdfReport({ match, reportRef }) {
+  const result = getMatchRosterResult(match)
+  const allEvents = getEventsForScope(match.events || [], 'all')
+  const firstEvents = getEventsForScope(match.events || [], 'first_half')
+  const secondEvents = getEventsForScope(match.events || [], 'second_half')
+  const stats = buildStats(allEvents)
+  const members = getMembersForScope(match, 'all')
+  const playerStats = buildPlayerStats(allEvents, members, { match, scope: 'all' })
+    .filter((player) => player.survivalPlayed)
+  const playerPages = chunkArray(playerStats, 4)
+
+  return (
+    <div className="pdf-report" ref={reportRef}>
+      <section className="pdf-page pdf-overview-page">
+        <PdfReportHeader match={match} />
+        <div className="pdf-score-summary">
+          <PdfScoreLine label="前半" score={result.firstScore} />
+          <PdfScoreLine label="後半" score={result.secondScore} />
+          <PdfScoreLine label="合計" score={result.totalScore} strong />
+          <strong className={`pdf-verdict ${result.verdictTone}`}>{result.verdict}</strong>
+        </div>
+        <div className="pdf-member-grid">
+          <PdfMemberList title="前半メンバー" members={match.firstHalfMembers} />
+          <PdfMemberList title="後半メンバー" members={match.secondHalfMembers} />
+        </div>
+        <div className="pdf-chart-grid">
+          <PdfRosterTrendChart
+            events={firstEvents}
+            startCount={match.firstHalfMembers.length}
+            title="前半 人数推移"
+          />
+          <PdfRosterTrendChart
+            events={secondEvents}
+            startCount={match.secondHalfMembers.length}
+            title="後半 人数推移"
+          />
+        </div>
+        <PdfTeamAnalysis stats={stats} />
+      </section>
+      {playerPages.map((players, index) => (
+        <section className="pdf-page" key={`players-${index}`}>
+          <div className="pdf-page-heading">
+            <p>PLAYER ANALYSIS</p>
+            <h2>選手別分析 {playerPages.length > 1 ? `${index + 1}/${playerPages.length}` : ''}</h2>
+          </div>
+          <div className="pdf-player-grid">
+            {players.map((player) => (
+              <PdfPlayerCard key={player.id} player={player} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function PdfReportHeader({ match }) {
+  return (
+    <header className="pdf-report-header">
+      <div>
+        <p>ROCKS DODGEBALL</p>
+        <h1>ROCKS 試合レポート</h1>
+        <span>ROCKS vs {match.opponentName}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>試合日時</dt>
+          <dd>{new Date(match.createdAt).toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>ROCKS</dt>
+          <dd>{match.firstPossession === 'rocks' ? '先攻' : '後攻'}</dd>
+        </div>
+      </dl>
+    </header>
+  )
+}
+
+function PdfScoreLine({ label, score, strong = false }) {
+  return (
+    <div className={strong ? 'pdf-score-line strong' : 'pdf-score-line'}>
+      <span>{label}</span>
+      <b>ROCKS</b>
+      <strong>{score.rocks}</strong>
+      <em>－</em>
+      <strong>{score.opponent}</strong>
+      <b>相手</b>
+    </div>
+  )
+}
+
+function PdfMemberList({ title, members }) {
+  return (
+    <article className="pdf-card">
+      <h2>{title}</h2>
+      <p>{members.map((member) => member.name).join('、')}</p>
+    </article>
+  )
+}
+
+function PdfTeamAnalysis({ stats }) {
+  return (
+    <div className="pdf-analysis-grid">
+      <PdfAnalysisCard
+        title="攻撃"
+        rows={[
+          ['総アタック数', stats.attack.total],
+          ['アタック成功数', stats.attack.hit],
+          ['アタック失敗数', stats.attack.miss],
+          ['アタック成功率', `${stats.attack.rate}%`],
+        ]}
+      />
+      <PdfAnalysisCard
+        title="アタック展開"
+        rows={[
+          ['単発攻撃', `${stats.attack.flow.single}回`],
+          ['継続攻撃', `${stats.attack.flow.possessionContinued}回`],
+          [
+            '攻撃継続率',
+            stats.attack.flow.continuationRate === null
+              ? '－'
+              : `${stats.attack.flow.continuationRate}%`,
+          ],
+          ['オーバータイム', `${stats.fouls.overtimeViolations}回`],
+        ]}
+      />
+      <PdfAnalysisCard
+        title="守備"
+        rows={[
+          ['相手アタック数', stats.defense.opponentAttack],
+          ['キャッチ数', stats.defense.catch],
+          ['被ヒット数', stats.defense.hitReceived],
+          ['キャッチ成功率', `${stats.defense.rate}%`],
+        ]}
+      />
+      <PdfAnalysisCard
+        title="パス"
+        rows={[
+          ['ラストパス数', stats.pass.lastPasses],
+          ['ラストパス成功数', stats.pass.lastPassHits],
+          [
+            'ラストパス成功率',
+            stats.pass.lastPassHitRate === null ? '－' : `${stats.pass.lastPassHitRate}%`,
+          ],
+          ['パスミス数', stats.pass.rocksPassErrors],
+        ]}
+      />
+    </div>
+  )
+}
+
+function PdfAnalysisCard({ title, rows }) {
+  return (
+    <article className="pdf-card pdf-analysis-card">
+      <h2>{title}</h2>
+      {rows.map(([label, value]) => (
+        <div className="pdf-stat-row" key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </article>
+  )
+}
+
+function PdfPlayerCard({ player }) {
+  const rows = [
+    ['アタック数', player.attacks],
+    ['アタック成功', player.hits],
+    ['アタック成功率', player.attackRate === null ? '－' : `${player.attackRate}%`],
+    ['アタック失敗', player.misses],
+    ['単発攻撃', player.singleAttacks],
+    ['継続攻撃', player.continuedAttacks],
+    ['攻撃継続率', player.continuationRate === null ? '－' : `${player.continuationRate}%`],
+    ['キャッチ', player.catches],
+    ['被ヒット', player.hitReceived],
+    ['キャッチ成功率', player.catchRate === null ? '－' : `${player.catchRate}%`],
+    ['平均生存時間', formatSurvivalValue(player.survivalSeconds, player.survivalPlayed)],
+    ['生存率', formatSurvivalRate(player.survivalRate, player.survivalPlayed)],
+    ['パスミス・投げ手', player.passerCauseErrors],
+    ['パスミス・受け手', player.receiverCauseErrors],
+    ['パスミス・両方', player.bothCausePassErrors],
+    ['被パスカット', player.passIntercepted],
+    ['パスカット成功', player.passInterceptions],
+    ['ラインクロス', player.lineCrosses],
+    ['ラストパス', player.lastPasses],
+    ['ラストパス成功', player.lastPassHits],
+    ['ラストパス成功率', player.lastPassHitRate === null ? '－' : `${player.lastPassHitRate}%`],
+  ]
+
+  return (
+    <article className="pdf-card pdf-player-card">
+      <h3>{player.name}</h3>
+      <div className="pdf-player-stat-grid">
+        {rows.map(([label, value]) => (
+          <div className="pdf-stat-row" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function PdfRosterTrendChart({ title, events, startCount }) {
+  const width = 680
+  const height = 230
+  const padding = { top: 24, right: 24, bottom: 36, left: 38 }
+  const innerWidth = width - padding.left - padding.right
+  const innerHeight = height - padding.top - padding.bottom
+  const maxCount = Math.max(1, startCount)
+  const x = (seconds) => padding.left + (Math.max(0, Math.min(MATCH_SECONDS, seconds)) / MATCH_SECONDS) * innerWidth
+  const y = (count) => padding.top + (1 - Math.max(0, Math.min(maxCount, count)) / maxCount) * innerHeight
+  const data = buildRosterTrend(events, startCount)
+  const timeTicks = [0, 60, 120, 180, 240, 300]
+  const countTicks = Array.from({ length: maxCount + 1 }, (_, index) => index)
+
+  return (
+    <article className="pdf-card pdf-chart-card">
+      <div className="pdf-chart-heading">
+        <h2>{title}</h2>
+        <span className="pdf-legend rocks">ROCKS</span>
+        <span className="pdf-legend opponent">相手</span>
+      </div>
+      <svg className="pdf-trend-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+        <rect x={padding.left} y={padding.top} width={innerWidth} height={innerHeight} />
+        {countTicks.map((tick) => (
+          <g key={`y-${tick}`}>
+            <line className="pdf-grid-line" x1={padding.left} x2={width - padding.right} y1={y(tick)} y2={y(tick)} />
+            <text className="pdf-axis-label" x={padding.left - 10} y={y(tick) + 4} textAnchor="end">{tick}</text>
+          </g>
+        ))}
+        {timeTicks.map((tick) => (
+          <g key={`x-${tick}`}>
+            <line className="pdf-grid-line vertical" x1={x(tick)} x2={x(tick)} y1={padding.top} y2={height - padding.bottom} />
+            <text className="pdf-axis-label" x={x(tick)} y={height - 12} textAnchor="middle">{formatElapsedTick(tick)}</text>
+          </g>
+        ))}
+        <path className="pdf-trend-line rocks" d={buildStepPath(data.rocks, x, y)} />
+        <path className="pdf-trend-line opponent" d={buildStepPath(data.opponent, x, y)} />
+      </svg>
+    </article>
+  )
+}
+
+function chunkArray(items, size) {
+  const chunks = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
 }
 
 function HalftimeGoalPanel({ match }) {
@@ -3163,6 +3537,22 @@ function formatSurvivalValue(seconds, played) {
 function formatSurvivalRate(rate, played) {
   if (!played || rate === null) return '出場なし'
   return `${rate}%`
+}
+
+function getPdfFileName(match) {
+  const opponentName = sanitizeFilePart(match.opponentName || '対戦相手')
+  const date = new Date(match.createdAt)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `ROCKS_試合レポート_${opponentName}_${year}${month}${day}.pdf`
+}
+
+function sanitizeFilePart(value) {
+  return String(value)
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '')
+    .slice(0, 40) || '対戦相手'
 }
 
 function StatLine({ label, value, rank, tone }) {

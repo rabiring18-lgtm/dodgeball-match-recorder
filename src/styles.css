@@ -1752,6 +1752,324 @@ input:focus {
   padding-bottom: 6px;
 }
 
+.pdf-report-host {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  width: 794px;
+  pointer-events: none;
+}
+
+.pdf-report {
+  width: 794px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.pdf-page {
+  width: 794px;
+  height: 1123px;
+  padding: 34px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(14, 165, 233, 0.1), rgba(244, 63, 94, 0.06)),
+    #f8fafc;
+}
+
+.pdf-overview-page {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.pdf-report-header {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 4px solid #0ea5e9;
+}
+
+.pdf-report-header p,
+.pdf-page-heading p {
+  margin: 0;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.pdf-report-header h1,
+.pdf-page-heading h2 {
+  margin: 4px 0;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.pdf-report-header span {
+  color: #334155;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.pdf-report-header dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.pdf-report-header dl div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+}
+
+.pdf-report-header dt,
+.pdf-report-header dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pdf-report-header dt {
+  color: #64748b;
+}
+
+.pdf-report-header dd {
+  color: #0f172a;
+}
+
+.pdf-score-summary,
+.pdf-member-grid,
+.pdf-chart-grid,
+.pdf-analysis-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.pdf-score-summary {
+  grid-template-columns: repeat(3, 1fr) 130px;
+  align-items: stretch;
+}
+
+.pdf-score-line,
+.pdf-verdict,
+.pdf-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.pdf-score-line {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto 1fr;
+  gap: 5px;
+  align-items: center;
+  padding: 10px;
+  font-weight: 900;
+}
+
+.pdf-score-line span {
+  grid-column: 1 / -1;
+  color: #0369a1;
+  font-size: 12px;
+}
+
+.pdf-score-line strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.pdf-score-line b,
+.pdf-score-line em {
+  color: #475569;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.pdf-score-line.strong {
+  border-color: #0ea5e9;
+}
+
+.pdf-verdict {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.pdf-verdict.win {
+  background: #0284c7;
+}
+
+.pdf-verdict.loss {
+  background: #e11d48;
+}
+
+.pdf-verdict.draw {
+  background: #64748b;
+}
+
+.pdf-member-grid,
+.pdf-chart-grid,
+.pdf-analysis-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pdf-card {
+  min-width: 0;
+  padding: 12px;
+}
+
+.pdf-card h2,
+.pdf-player-card h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+}
+
+.pdf-card p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.pdf-analysis-card h2,
+.pdf-chart-card h2 {
+  font-size: 16px;
+}
+
+.pdf-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pdf-stat-row span {
+  min-width: 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.pdf-stat-row strong {
+  flex-shrink: 0;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.pdf-chart-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-chart-heading h2 {
+  flex: 1;
+  margin: 0;
+}
+
+.pdf-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pdf-legend::before {
+  content: "";
+  width: 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.pdf-legend.rocks {
+  color: #0284c7;
+}
+
+.pdf-legend.opponent {
+  color: #e11d48;
+}
+
+.pdf-trend-svg {
+  width: 100%;
+  height: auto;
+}
+
+.pdf-trend-svg rect {
+  fill: #ffffff;
+  stroke: #cbd5e1;
+}
+
+.pdf-grid-line {
+  stroke: #dbeafe;
+  stroke-width: 1;
+}
+
+.pdf-grid-line.vertical {
+  stroke: #e2e8f0;
+}
+
+.pdf-axis-label {
+  fill: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pdf-trend-line {
+  fill: none;
+  stroke-width: 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.pdf-trend-line.rocks {
+  stroke: #0284c7;
+}
+
+.pdf-trend-line.opponent {
+  stroke: #e11d48;
+}
+
+.pdf-page-heading {
+  margin-bottom: 14px;
+}
+
+.pdf-player-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.pdf-player-card {
+  break-inside: avoid;
+}
+
+.pdf-player-card h3 {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.pdf-player-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: 14px;
+}
+
 .saved-match-list {
   margin-top: 14px;
 }
