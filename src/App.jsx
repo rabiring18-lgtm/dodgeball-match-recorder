@@ -19,8 +19,6 @@ import {
   getEventTargetLabel,
   getEventsForScope,
   getPlayersByIds,
-  impressionEventTypes,
-  impressionEvents,
   isRegisteredPlayer,
   normalizeMatch,
   normalizeMatchSetup,
@@ -415,7 +413,7 @@ function App() {
     setTargetPicker({
       eventType,
       label: eventLabels[eventType],
-      kind: impressionEventTypes.has(eventType) ? 'impression' : 'play',
+      kind: 'play',
     })
   }
 
@@ -751,8 +749,8 @@ function App() {
       exportedAt: Date.now(),
       players,
       opponentHistory,
-      savedMatches,
-      activeMatch,
+      savedMatches: normalizeSavedMatches(savedMatches),
+      activeMatch: normalizeMatch(activeMatch),
     }
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: 'application/json',
@@ -1378,20 +1376,6 @@ function GameScreen({
         ))}
       </section>
 
-      <section className="impression-grid">
-        {impressionEvents.map((event) => (
-          <button
-            className="impression-button"
-            key={event.eventType}
-            type="button"
-            onClick={() => onRecord(event.eventType)}
-            disabled={disabled}
-          >
-            {event.label}
-          </button>
-        ))}
-      </section>
-
       <div className="game-bottom-layout">
         <section className="history-panel">
           <div className="section-heading compact">
@@ -1469,15 +1453,14 @@ function GameScreen({
 }
 
 function TargetPicker({ pending, members, outPlayerIds, onSelect, onCancel }) {
-  const isImpression = pending.kind === 'impression'
   const shouldBlockOutPlayers = defensiveTargetEventTypes.has(pending.eventType)
 
   return (
     <div className="target-overlay" role="presentation">
       <section className="target-modal" role="dialog" aria-modal="true">
-        <p className="eyebrow">{isImpression ? 'IMPRESSION TARGET' : 'PLAY TARGET'}</p>
+        <p className="eyebrow">PLAY TARGET</p>
         <h2>{pending.label}を記録</h2>
-        <p>{isImpression ? '対象を選んでください' : '誰のプレーですか？'}</p>
+        <p>誰のプレーですか？</p>
         <div className="target-player-grid">
           {members.map((member) => {
             const isOut = shouldBlockOutPlayers && outPlayerIds.has(member.id)
@@ -1502,21 +1485,6 @@ function TargetPicker({ pending, members, outPlayerIds, onSelect, onCancel }) {
           })}
         </div>
         <div className="target-option-row">
-          {isImpression && (
-            <button
-              className="target-team-button"
-              type="button"
-              onClick={() =>
-                onSelect({
-                  targetScope: 'team',
-                  playerId: null,
-                  playerNameSnapshot: 'チーム全体',
-                })
-              }
-            >
-              チーム全体
-            </button>
-          )}
           <button
             className="target-unknown-button"
             type="button"
@@ -2176,7 +2144,6 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
   }
 
   const stats = buildStats(events)
-  const maxImpression = Math.max(1, ...stats.impressions.map((item) => item.count))
 
   return (
     <>
@@ -2220,21 +2187,7 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
         <StatLine label="パスミス" value={stats.pass.rocksPassErrors} />
       </div>
       </section>
-      <section className="analysis-insight-grid">
-        <div className="stat-card impressions">
-          <h2>コーチ所感</h2>
-          {stats.impressions.map((item, index) => (
-            <div className={index < 3 ? 'bar-row top' : 'bar-row'} key={item.eventType}>
-              <span>{item.label}</span>
-              <div>
-                <i style={{ width: `${(item.count / maxImpression) * 100}%` }} />
-              </div>
-              <strong>{item.count}</strong>
-            </div>
-          ))}
-        </div>
-        <PlayerSummary events={events} members={members} scope={scope} />
-      </section>
+      <PlayerSummary events={events} members={members} scope={scope} />
     </>
   )
 }
@@ -2345,18 +2298,6 @@ function PlayerStatsView({ events, members, compact = false }) {
                 label="ラストパス成功率"
                 value={player.lastPassHitRate === null ? '—' : `${player.lastPassHitRate}%`}
               />
-            )}
-          </div>
-          <div className="player-impressions">
-            <strong>所感</strong>
-            {player.impressions.length === 0 ? (
-              <span>記録なし</span>
-            ) : (
-              player.impressions.map((item) => (
-                <span key={item.eventType}>
-                  {item.label} {item.count}
-                </span>
-              ))
             )}
           </div>
         </article>

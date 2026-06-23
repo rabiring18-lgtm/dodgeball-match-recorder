@@ -53,15 +53,6 @@ export const playEvents = {
   ],
 }
 
-export const impressionEvents = [
-  { eventType: 'impression_judgment', label: '判断' },
-  { eventType: 'impression_rushed', label: '攻め急ぎ' },
-  { eventType: 'impression_catch_posture', label: '姿勢' },
-  { eventType: 'impression_stopped_feet', label: '足止まり' },
-  { eventType: 'impression_no_voice', label: '声不足' },
-  { eventType: 'impression_mental', label: 'メンタル' },
-]
-
 export const playEventTypes = new Set(
   [...playEvents.rocks, ...playEvents.opponent].map((event) => event.eventType),
 )
@@ -75,14 +66,9 @@ export const attackFlowLabels = {
   unknown: '不明',
 }
 
-export const impressionEventTypes = new Set(
-  impressionEvents.map((event) => event.eventType),
-)
-
 export const eventLabels = [
   ...playEvents.rocks,
   ...playEvents.opponent,
-  ...impressionEvents,
 ].reduce((labels, event) => {
   labels[event.eventType] = event.label
   return labels
@@ -91,6 +77,25 @@ export const eventLabels = [
 export const teamOnlyPlayEventTypes = new Set(['opponent_pass_error'])
 
 export const defensiveTargetEventTypes = new Set(['catch_success', 'hit_received'])
+
+export const coachImpressionEventTypes = new Set([
+  'impression_judgment',
+  'impression_rushed',
+  'impression_catch_posture',
+  'impression_stopped_feet',
+  'impression_no_voice',
+  'impression_mental',
+])
+
+export function isCoachImpressionEventType(eventType) {
+  return coachImpressionEventTypes.has(String(eventType ?? ''))
+}
+
+export function removeCoachImpressionEvents(events) {
+  return Array.isArray(events)
+    ? events.filter((event) => !isCoachImpressionEventType(event?.eventType))
+    : []
+}
 
 export function normalizeAttackFlow(eventType, value) {
   if (!attackEventTypes.has(eventType)) return null
@@ -203,14 +208,11 @@ export function normalizeEvent(event) {
       ? source.playerId
       : null
   const isPlay = playEventTypes.has(eventType)
-  const isImpression = impressionEventTypes.has(eventType)
   const defaultScope = teamOnlyPlayEventTypes.has(eventType)
     ? 'team'
     : isPlay
       ? 'unknown'
-      : isImpression
-        ? 'team'
-        : 'unknown'
+      : 'unknown'
   const defaultName = defaultScope === 'team' ? 'チーム全体' : '不明'
   const targetScope = ['player', 'team', 'unknown'].includes(source.targetScope)
     ? source.targetScope
@@ -273,7 +275,7 @@ export function normalizeMatch(match) {
     currentPossession: match.currentPossession === 'opponent' ? 'opponent' : 'rocks',
     firstHalfMembers: normalizeMemberList(match.firstHalfMembers),
     secondHalfMembers: normalizeMemberList(match.secondHalfMembers),
-    events: Array.isArray(match.events) ? match.events.map(normalizeEvent) : [],
+    events: removeCoachImpressionEvents(match.events).map(normalizeEvent),
     remainingTime: Math.max(0, Number(match.remainingTime) || 0),
     timerRunning: Boolean(match.timerRunning),
     timerEndAt: match.timerEndAt ? Number(match.timerEndAt) : null,
@@ -402,7 +404,7 @@ export function createEvent(match, eventType, target = {}) {
 }
 
 export function getEventsForScope(events, scope) {
-  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const normalizedEvents = removeCoachImpressionEvents(events).map(normalizeEvent)
   if (scope === 'all') {
     return normalizedEvents
   }
@@ -411,7 +413,7 @@ export function getEventsForScope(events, scope) {
 }
 
 export function buildStats(events) {
-  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const normalizedEvents = removeCoachImpressionEvents(events).map(normalizeEvent)
   const count = (eventType) =>
     normalizedEvents.filter((event) => event.eventType === eventType).length
   const attackHit = count('attack_hit')
@@ -443,13 +445,6 @@ export function buildStats(events) {
     normalizedEvents.filter(
       (event) => event.eventType === 'pass_error' && event.passErrorCause === cause,
     ).length
-  const impressions = impressionEvents
-    .map((item, index) => ({
-      ...item,
-      count: count(item.eventType),
-      order: index,
-    }))
-    .sort((a, b) => b.count - a.count || a.order - b.order)
 
   return {
     attack: {
@@ -488,12 +483,11 @@ export function buildStats(events) {
         both: passErrorCauseCount('both'),
       },
     },
-    impressions,
   }
 }
 
 export function buildPlayerStats(events, members) {
-  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const normalizedEvents = removeCoachImpressionEvents(events).map(normalizeEvent)
   const memberMap = new Map((members || []).map((member) => [member.id, member]))
 
   return (members || []).map((member) => {
@@ -545,10 +539,6 @@ export function buildPlayerStats(events, members) {
     ).length
     const passErrorResponsibility =
       passerCauseErrors + receiverCauseErrors + bothCausePassErrors
-    const impressions = impressionEvents
-      .map((item) => ({ ...item, count: count(item.eventType) }))
-      .filter((item) => item.count > 0)
-
     return {
       id: member.id,
       name: memberMap.get(member.id)?.name ?? member.name,
@@ -578,13 +568,12 @@ export function buildPlayerStats(events, members) {
       lastPassHits,
       lastPassHitRate:
         lastPasses > 0 ? Math.round((lastPassHits / lastPasses) * 100) : null,
-      impressions,
     }
   })
 }
 
 export function buildPlayerSummary(events, members = []) {
-  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
+  const normalizedEvents = removeCoachImpressionEvents(events).map(normalizeEvent)
   const memberMap = new Map((members || []).map((member) => [member.id, member.name]))
   const createBucket = () => new Map()
   const buckets = {
@@ -661,18 +650,6 @@ export function buildPlayerSummary(events, members = []) {
       { key: 'passIntercepted', label: 'パスカットされた', players: ranked(buckets.passIntercepted) },
     ],
   }
-}
-
-export function getTeamImpressions(events) {
-  const normalizedEvents = Array.isArray(events) ? events.map(normalizeEvent) : []
-  return impressionEvents
-    .map((item) => ({
-      ...item,
-      count: normalizedEvents.filter(
-        (event) => event.eventType === item.eventType && event.targetScope === 'team',
-      ).length,
-    }))
-    .filter((item) => item.count > 0)
 }
 
 export function getEventTargetLabel(event) {
