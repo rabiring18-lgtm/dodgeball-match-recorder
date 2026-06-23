@@ -590,7 +590,7 @@ input:focus {
   min-height: 86px;
   border: 2px solid #64748b;
   border-radius: 8px;
-  background: transparent;
+  background: rgba(15, 23, 42, 0.58);
   color: #e2e8f0;
   font-size: clamp(1.2rem, 2.2vw, 1.8rem);
   font-weight: 900;
@@ -601,9 +601,25 @@ input:focus {
 }
 
 .ball-button.selected {
+  border-width: 4px;
   border-color: #38bdf8;
   background: #0ea5e9;
   color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.16);
+}
+
+.ball-button:not(.selected) {
+  opacity: 0.72;
+}
+
+.ball-button small {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.78rem;
+  vertical-align: middle;
 }
 
 .game-member-section {
@@ -709,8 +725,38 @@ input:focus {
 
 .game-top-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: minmax(96px, auto) repeat(2, minmax(120px, 1fr));
+  align-items: center;
   gap: 10px;
+}
+
+.match-save-status {
+  display: inline-grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 42px;
+  padding: 6px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.match-save-status small {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.match-save-status.saving {
+  color: #bae6fd;
+}
+
+.match-save-status.error {
+  border-color: rgba(249, 115, 22, 0.48);
+  color: #fed7aa;
 }
 
 .undo-button {
@@ -1047,7 +1093,25 @@ input:focus {
   gap: 8px;
   align-items: center;
   min-height: 44px;
+  padding-left: 8px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
+  border-left: 4px solid transparent;
+}
+
+.history-row.success {
+  border-left-color: #22c55e;
+}
+
+.history-row.attention {
+  border-left-color: #f97316;
+}
+
+.history-row.received {
+  border-left-color: #fb7185;
+}
+
+.history-row.foul {
+  border-left-color: #f59e0b;
 }
 
 .history-row strong {

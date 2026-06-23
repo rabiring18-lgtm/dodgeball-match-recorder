@@ -134,16 +134,20 @@ export function safeReadStorage(key, fallback) {
 export function safeWriteStorage(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
+    return true
   } catch {
     // Storage may be unavailable in private mode. Keep the app usable.
+    return false
   }
 }
 
 export function safeRemoveStorage(key) {
   try {
     window.localStorage.removeItem(key)
+    return true
   } catch {
     // Ignore storage removal failures.
+    return false
   }
 }
 

@@ -78,6 +78,10 @@ function App() {
   })
   const [notice, setNotice] = useState('')
   const [saveNotice, setSaveNotice] = useState('')
+  const [matchSaveStatus, setMatchSaveStatus] = useState({
+    state: 'saved',
+    savedAt: null,
+  })
   const [isDataPanelOpen, setIsDataPanelOpen] = useState(false)
   const [isOperationPanelOpen, setIsOperationPanelOpen] = useState(false)
   const [selectedResultScope, setSelectedResultScope] = useState('all')
@@ -146,11 +150,24 @@ function App() {
   }, [savedMatches])
 
   useEffect(() => {
-    if (activeMatch && activeMatch.status !== 'completed') {
-      safeWriteStorage(STORAGE_KEYS.activeMatch, activeMatch)
-    } else if (!activeMatch) {
-      safeRemoveStorage(STORAGE_KEYS.activeMatch)
-    }
+    setMatchSaveStatus((current) => ({ ...current, state: 'saving' }))
+    const saveTimer = window.setTimeout(() => {
+      if (activeMatch && activeMatch.status !== 'completed') {
+        const saved = safeWriteStorage(STORAGE_KEYS.activeMatch, activeMatch)
+        setMatchSaveStatus({
+          state: saved ? 'saved' : 'error',
+          savedAt: saved ? Date.now() : null,
+        })
+      } else if (!activeMatch) {
+        const removed = safeRemoveStorage(STORAGE_KEYS.activeMatch)
+        setMatchSaveStatus((current) => ({
+          state: removed ? 'saved' : 'error',
+          savedAt: removed ? Date.now() : current.savedAt,
+        }))
+      }
+    }, 80)
+
+    return () => window.clearTimeout(saveTimer)
   }, [activeMatch])
 
   useEffect(() => {
@@ -894,6 +911,7 @@ function App() {
           members={gameMembers}
           operationPanelOpen={isOperationPanelOpen}
           targetPickerOpen={Boolean(targetPicker || lastPassPicker || passErrorPicker || zeroRosterPrompt)}
+          saveStatus={matchSaveStatus}
           onToggleOperationPanel={() => setIsOperationPanelOpen(true)}
           onCloseOperationPanel={() => setIsOperationPanelOpen(false)}
           onToggleTimer={handleTimerToggle}
@@ -1301,6 +1319,7 @@ function GameScreen({
   members,
   operationPanelOpen,
   targetPickerOpen,
+  saveStatus,
   onToggleOperationPanel,
   onCloseOperationPanel,
   onToggleTimer,
@@ -1327,6 +1346,7 @@ function GameScreen({
           <p>{match.timerRunning ? '試合進行中' : 'タイマー停止中'}</p>
         </div>
         <div className="game-top-actions">
+          <SaveStatusBadge status={saveStatus} />
           <button className="undo-button" type="button" onClick={onUndo} disabled={!match.events.length || targetPickerOpen}>
             ↶ 直前取消
           </button>
@@ -1367,6 +1387,7 @@ function GameScreen({
           >
             <span>{match.currentPossession === value ? '●' : '○'}</span>
             {label}
+            {match.currentPossession === value && <small>保持中</small>}
           </button>
         ))}
       </section>
@@ -1411,7 +1432,7 @@ function GameScreen({
             <p className="empty-state">記録はまだありません</p>
           ) : (
             recentEvents.map((event) => (
-              <div className="history-row" key={event.eventId}>
+              <div className={`history-row ${getHistoryTone(event.eventType)}`} key={event.eventId}>
                 <span>{formatTime(event.remainingTime)}</span>
                 <strong>
                   {getHistoryTargetLabel(event) && (
@@ -1477,6 +1498,30 @@ function GameScreen({
         </aside>
       )}
     </main>
+  )
+}
+
+function SaveStatusBadge({ status }) {
+  const label =
+    status.state === 'saving'
+      ? '保存中…'
+      : status.state === 'error'
+        ? '保存できませんでした'
+        : '保存済み'
+  const timeLabel =
+    status.state === 'saved' && status.savedAt
+      ? new Date(status.savedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      : ''
+
+  return (
+    <span className={`match-save-status ${status.state}`} aria-live="polite">
+      {label}
+      {timeLabel && <small>{timeLabel}</small>}
+    </span>
   )
 }
 
@@ -2056,6 +2101,29 @@ function getHistoryEventLabel(event) {
   }
 
   return `${label}／${attackFlowLabels[event.attackFlow || 'unknown']}`
+}
+
+function getHistoryTone(eventType) {
+  if (['attack_hit', 'catch_success', 'pass_interception'].includes(eventType)) {
+    return 'success'
+  }
+  if (
+    [
+      'attack_miss',
+      'pass_error',
+      'pass_intercepted',
+      'opponent_pass_error',
+    ].includes(eventType)
+  ) {
+    return 'attention'
+  }
+  if (eventType === 'hit_received') {
+    return 'received'
+  }
+  if (['line_cross', 'overtime_violation'].includes(eventType)) {
+    return 'foul'
+  }
+  return 'neutral'
 }
 
 function getHistoryTargetLabel(event) {
