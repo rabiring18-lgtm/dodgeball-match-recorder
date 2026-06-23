@@ -1784,7 +1784,7 @@ function ResultScreen({
           </button>
           <div className="status-panel">
             <span>{match.firstPossession === 'rocks' ? '先攻' : '後攻'}</span>
-            <strong>終了</strong>
+            <strong>記録完了</strong>
           </div>
         </div>
       </header>
@@ -2186,7 +2186,7 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
       <div className="stat-card">
         <h2>攻撃</h2>
         <StatLine label="総アタック数" value={stats.attack.total} />
-        <StatLine label="当てた数" value={stats.attack.hit} />
+        <StatLine label="アタック成功数" value={stats.attack.hit} />
         <StatLine label="アタック失敗数" value={stats.attack.miss} />
         <StatLine label="アタック成功率" value={`${stats.attack.rate}%`} />
       </div>
@@ -2194,7 +2194,6 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
         <h2>アタック展開</h2>
         <StatLine label="単発" value={`${stats.attack.flow.single}回`} />
         <StatLine label="攻撃権継続" value={`${stats.attack.flow.possessionContinued}回`} />
-        <StatLine label="不明" value={`${stats.attack.flow.unknown}回`} />
         <StatLine
           label="攻撃権継続率"
           value={
@@ -2203,6 +2202,7 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
               : `${stats.attack.flow.continuationRate}%`
           }
         />
+        <StatLine label="オーバータイム" value={`${stats.fouls.overtimeViolations}回`} />
       </div>
       <div className="stat-card">
         <h2>守備</h2>
@@ -2300,7 +2300,7 @@ function PlayerStatsView({ events, members, compact = false }) {
           <h2>{player.name}</h2>
           <div className="mini-stat-grid">
             <StatLine label="アタック" value={player.attacks} />
-            <StatLine label="当てた" value={player.hits} rank={rankMaps.hits.get(player.id)} />
+            <StatLine label="アタック成功" value={player.hits} rank={rankMaps.hits.get(player.id)} />
             <StatLine label="成功率" value={player.attackRate === null ? '—' : `${player.attackRate}%`} />
             {!compact && <StatLine label="アタック失敗" value={player.misses} />}
             {!compact && <StatLine label="単発" value={player.singleAttacks} />}
