@@ -13,6 +13,7 @@ import {
   createMatchFromSetup,
   defaultMatchSetup,
   eventLabels,
+  foulEvents,
   formatTime,
   getBackupFileName,
   getCurrentRemaining,
@@ -425,7 +426,12 @@ function App() {
     ) {
       return 'rocks'
     }
-    if (eventType === 'pass_error' || eventType === 'pass_intercepted') {
+    if (
+      eventType === 'pass_error' ||
+      eventType === 'pass_intercepted' ||
+      eventType === 'line_cross' ||
+      eventType === 'overtime_violation'
+    ) {
       return 'opponent'
     }
     return null
@@ -1376,6 +1382,22 @@ function GameScreen({
         ))}
       </section>
 
+      {match.currentPossession === 'rocks' && (
+        <section className="foul-grid" aria-label="ROCKSの反則">
+          {foulEvents.map((event) => (
+            <button
+              className={`foul-button ${event.tone}`}
+              key={event.eventType}
+              type="button"
+              onClick={() => onRecord(event.eventType)}
+              disabled={disabled}
+            >
+              {event.label}
+            </button>
+          ))}
+        </section>
+      )}
+
       <div className="game-bottom-layout">
         <section className="history-panel">
           <div className="section-heading compact">
@@ -1388,7 +1410,9 @@ function GameScreen({
               <div className="history-row" key={event.eventId}>
                 <span>{formatTime(event.remainingTime)}</span>
                 <strong>
-                  <span className="history-target">{getEventTargetLabel(event)}</span>
+                  {getHistoryTargetLabel(event) && (
+                    <span className="history-target">{getHistoryTargetLabel(event)}</span>
+                  )}
                   {getHistoryEventLabel(event)}
                   {attackEventTypes.has(event.eventType) && (
                     <span className="history-subline">
@@ -1454,13 +1478,15 @@ function GameScreen({
 
 function TargetPicker({ pending, members, outPlayerIds, onSelect, onCancel }) {
   const shouldBlockOutPlayers = defensiveTargetEventTypes.has(pending.eventType)
+  const targetQuestion =
+    pending.eventType === 'line_cross' ? 'ラインクロスした選手は？' : '誰のプレーですか？'
 
   return (
     <div className="target-overlay" role="presentation">
       <section className="target-modal" role="dialog" aria-modal="true">
         <p className="eyebrow">PLAY TARGET</p>
         <h2>{pending.label}を記録</h2>
-        <p>誰のプレーですか？</p>
+        <p>{targetQuestion}</p>
         <div className="target-player-grid">
           {members.map((member) => {
             const isOut = shouldBlockOutPlayers && outPlayerIds.has(member.id)
@@ -1884,6 +1910,8 @@ function recalculateAttackFlows(match, period, finalizeOpenAttack = false) {
     'attack_miss',
     'pass_error',
     'pass_intercepted',
+    'line_cross',
+    'overtime_violation',
   ])
 
   events.forEach((event, index) => {
@@ -1911,6 +1939,8 @@ function recalculateAttackFlows(match, period, finalizeOpenAttack = false) {
     if (
       nextSignificant?.eventType === 'pass_error' ||
       nextSignificant?.eventType === 'pass_intercepted' ||
+      nextSignificant?.eventType === 'line_cross' ||
+      nextSignificant?.eventType === 'overtime_violation' ||
       finalizeOpenAttack
     ) {
       event.attackFlow = 'single'
@@ -1930,6 +1960,11 @@ function getHistoryEventLabel(event) {
   }
 
   return `${label}／${attackFlowLabels[event.attackFlow || 'unknown']}`
+}
+
+function getHistoryTargetLabel(event) {
+  if (event.eventType === 'overtime_violation') return ''
+  return getEventTargetLabel(event)
 }
 
 function getLastPassLabel(event) {

@@ -825,6 +825,29 @@ input:focus {
   background: #ea580c;
 }
 
+.foul-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.foul-button {
+  min-height: 60px;
+  border: 2px solid rgba(249, 115, 22, 0.5);
+  border-radius: 8px;
+  background: rgba(249, 115, 22, 0.16);
+  color: #fed7aa;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  font-weight: 950;
+}
+
+.foul-button:disabled {
+  border-color: #475569;
+  background: #334155;
+  color: #94a3b8;
+}
+
 .play-button:disabled {
   background: #334155;
   border-color: #475569;
@@ -1580,6 +1603,7 @@ input:focus {
   }
 
   .play-grid,
+  .foul-grid,
   .stats-grid,
   .scope-tabs,
   .mode-tabs,

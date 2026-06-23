@@ -53,6 +53,11 @@ export const playEvents = {
   ],
 }
 
+export const foulEvents = [
+  { eventType: 'line_cross', label: 'ラインクロス', tone: 'caution' },
+  { eventType: 'overtime_violation', label: 'オーバータイム', tone: 'caution' },
+]
+
 export const playEventTypes = new Set(
   [...playEvents.rocks, ...playEvents.opponent].map((event) => event.eventType),
 )
@@ -69,12 +74,13 @@ export const attackFlowLabels = {
 export const eventLabels = [
   ...playEvents.rocks,
   ...playEvents.opponent,
+  ...foulEvents,
 ].reduce((labels, event) => {
   labels[event.eventType] = event.label
   return labels
 }, {})
 
-export const teamOnlyPlayEventTypes = new Set(['opponent_pass_error'])
+export const teamOnlyPlayEventTypes = new Set(['opponent_pass_error', 'overtime_violation'])
 
 export const defensiveTargetEventTypes = new Set(['catch_success', 'hit_received'])
 
@@ -202,6 +208,7 @@ export function normalizeEvent(event) {
   const source = event && typeof event === 'object' ? event : {}
   const eventType = String(source.eventType ?? '')
   const isPassError = eventType === 'pass_error'
+  const isTeamOnlyViolation = eventType === 'overtime_violation'
   const passErrorPasserId = isPassError && Number.isInteger(source.passerId)
     ? source.passerId
     : isPassError && Number.isInteger(source.playerId)
@@ -230,7 +237,9 @@ export function normalizeEvent(event) {
     remainingTime: Math.max(0, Number(source.remainingTime) || 0),
     timestamp: Number(source.timestamp) || Date.now(),
     playerId: Number.isInteger(source.playerId) ? source.playerId : null,
-    playerNameSnapshot: String(source.playerNameSnapshot ?? defaultName),
+    playerNameSnapshot: isTeamOnlyViolation
+      ? null
+      : String(source.playerNameSnapshot ?? defaultName),
     targetScope,
     attackFlow: normalizeAttackFlow(eventType, source.attackFlow),
     lastPasserId: Number.isInteger(source.lastPasserId) ? source.lastPasserId : null,
@@ -353,6 +362,7 @@ export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMem
 export function createEvent(match, eventType, target = {}) {
   const remainingTime = getCurrentRemaining(match)
   const isPassError = eventType === 'pass_error'
+  const isTeamOnlyViolation = eventType === 'overtime_violation'
   const targetScope = ['player', 'team', 'unknown'].includes(target.targetScope)
     ? target.targetScope
     : playEventTypes.has(eventType)
@@ -370,7 +380,9 @@ export function createEvent(match, eventType, target = {}) {
     timestamp: Date.now(),
     playerId: targetScope === 'player' && Number.isInteger(target.playerId) ? target.playerId : null,
     playerNameSnapshot:
-      target.playerNameSnapshot ??
+      isTeamOnlyViolation
+        ? null
+        : target.playerNameSnapshot ??
       (targetScope === 'team' ? 'チーム全体' : targetScope === 'unknown' ? '不明' : null),
     targetScope,
     attackFlow: normalizeAttackFlow(eventType, target.attackFlow),
@@ -434,6 +446,8 @@ export function buildStats(events) {
   const rocksPassIntercepted = count('pass_intercepted')
   const opponentPassErrors = count('opponent_pass_error')
   const rocksPassInterceptions = count('pass_interception')
+  const lineCrosses = count('line_cross')
+  const overtimeViolations = count('overtime_violation')
   const lastPassEvents = normalizedEvents.filter(
     (event) => attackEventTypes.has(event.eventType) && event.lastPassScope === 'player',
   )
@@ -483,6 +497,10 @@ export function buildStats(events) {
         both: passErrorCauseCount('both'),
       },
     },
+    fouls: {
+      lineCrosses,
+      overtimeViolations,
+    },
   }
 }
 
@@ -519,6 +537,7 @@ export function buildPlayerStats(events, members) {
     const catches = count('catch_success')
     const hitReceived = count('hit_received')
     const defenseTotal = catches + hitReceived
+    const lineCrosses = count('line_cross')
     const passErrorAsPasser = normalizedEvents.filter(
       (event) => event.eventType === 'pass_error' && event.passerId === member.id,
     )
@@ -568,6 +587,7 @@ export function buildPlayerStats(events, members) {
       lastPassHits,
       lastPassHitRate:
         lastPasses > 0 ? Math.round((lastPassHits / lastPasses) * 100) : null,
+      lineCrosses,
     }
   })
 }
