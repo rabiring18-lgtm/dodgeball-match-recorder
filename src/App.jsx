@@ -761,6 +761,10 @@ function App() {
       remainingTime: getCurrentRemaining(current),
       timerRunning: false,
       timerEndAt: null,
+      periodDurations: {
+        ...(current.periodDurations || {}),
+        first_half: getPeriodElapsedSeconds(current),
+      },
     }))
     setAnalysisMode('team')
     setIsOperationPanelOpen(false)
@@ -828,6 +832,10 @@ function App() {
       remainingTime: getCurrentRemaining(activeMatch),
       timerRunning: false,
       timerEndAt: null,
+      periodDurations: {
+        ...(completedBase.periodDurations || {}),
+        [completedBase.period]: getPeriodElapsedSeconds(activeMatch),
+      },
       completedAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -2663,6 +2671,10 @@ function getPassErrorCauseLabel(cause) {
   return null
 }
 
+function getPeriodElapsedSeconds(match) {
+  return Math.max(0, MATCH_SECONDS - getCurrentRemaining(match))
+}
+
 function getEventEditSummary(event) {
   if (attackEventTypes.has(event.eventType)) {
     return `${getEventTargetLabel(event)} / ラストパス: ${getLastPassLabel(event)}`
@@ -2950,7 +2962,15 @@ function StatsView({ match, scope, mode = 'team', members = [], compactPlayer = 
   const events = getEventsForScope(match.events || [], scope)
 
   if (mode === 'player') {
-    return <PlayerStatsView events={events} members={members} compact={compactPlayer} />
+    return (
+      <PlayerStatsView
+        events={events}
+        match={match}
+        members={members}
+        scope={scope}
+        compact={compactPlayer}
+      />
+    )
   }
 
   const stats = buildStats(events)
@@ -3055,8 +3075,8 @@ function getSummaryRank(players, index) {
   return firstSameCountIndex + 1
 }
 
-function PlayerStatsView({ events, members, compact = false }) {
-  const stats = buildPlayerStats(events, members)
+function PlayerStatsView({ events, match, members, scope, compact = false }) {
+  const stats = buildPlayerStats(events, members, { match, scope })
 
   if (stats.length === 0) {
     return <p className="empty-state">対象メンバーがありません。</p>
@@ -3089,6 +3109,14 @@ function PlayerStatsView({ events, members, compact = false }) {
             <StatLine label="キャッチ" value={player.catches} rank={rankMaps.catches.get(player.id)} />
             <StatLine label="被ヒット" value={player.hitReceived} />
             {!compact && <StatLine label="キャッチ成功率" value={player.catchRate === null ? '—' : `${player.catchRate}%`} />}
+            <StatLine
+              label={scope === 'all' ? '平均生存時間' : '生存時間'}
+              value={formatSurvivalValue(player.survivalSeconds, player.survivalPlayed)}
+            />
+            <StatLine
+              label="生存率"
+              value={formatSurvivalRate(player.survivalRate, player.survivalPlayed)}
+            />
             <StatLine label="パスミス・投げ手" value={player.passerCauseErrors} tone={player.passerCauseErrors > 0 ? 'caution' : undefined} />
             <StatLine label="パスミス・受け手" value={player.receiverCauseErrors} tone={player.receiverCauseErrors > 0 ? 'caution' : undefined} />
             <StatLine label="パスミス・両方" value={player.bothCausePassErrors} tone={player.bothCausePassErrors > 0 ? 'caution' : undefined} />
@@ -3124,6 +3152,17 @@ function buildRankMap(players, field) {
       return [player.id, firstSameCountIndex + 1]
     }),
   )
+}
+
+function formatSurvivalValue(seconds, played) {
+  if (!played) return '出場なし'
+  const safeSeconds = Math.max(0, Math.round(Number(seconds) || 0))
+  return `${Math.floor(safeSeconds / 60)}:${String(safeSeconds % 60).padStart(2, '0')}`
+}
+
+function formatSurvivalRate(rate, played) {
+  if (!played || rate === null) return '出場なし'
+  return `${rate}%`
 }
 
 function StatLine({ label, value, rank, tone }) {

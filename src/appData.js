@@ -191,6 +191,17 @@ export function normalizeOpponentHistory(value) {
     : []
 }
 
+export function normalizePeriodDurations(value) {
+  const source = value && typeof value === 'object' ? value : {}
+  const normalizeDuration = (duration) =>
+    Number.isFinite(Number(duration)) ? Math.max(0, Math.round(Number(duration))) : null
+
+  return {
+    first_half: normalizeDuration(source.first_half),
+    second_half: normalizeDuration(source.second_half),
+  }
+}
+
 export function isRegisteredPlayer(player) {
   return player.name.trim() !== ''
 }
@@ -292,6 +303,7 @@ export function normalizeMatch(match) {
     remainingTime: Math.max(0, Number(match.remainingTime) || 0),
     timerRunning: Boolean(match.timerRunning),
     timerEndAt: match.timerEndAt ? Number(match.timerEndAt) : null,
+    periodDurations: normalizePeriodDurations(match.periodDurations),
     createdAt: Number(match.createdAt) || Date.now(),
     updatedAt: Number(match.updatedAt) || Date.now(),
     completedAt: match.completedAt ? Number(match.completedAt) : null,
@@ -357,6 +369,10 @@ export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMem
     remainingTime: MATCH_SECONDS,
     timerRunning: true,
     timerEndAt: now + MATCH_SECONDS * 1000,
+    periodDurations: {
+      first_half: null,
+      second_half: null,
+    },
     createdAt: now,
     updatedAt: now,
     completedAt: null,
@@ -508,9 +524,19 @@ export function buildStats(events) {
   }
 }
 
-export function buildPlayerStats(events, members) {
+export function buildPlayerStats(events, members, options = {}) {
   const normalizedEvents = removeCoachImpressionEvents(events).map(normalizeEvent)
+  const allEvents = options.match?.events
+    ? removeCoachImpressionEvents(options.match.events).map(normalizeEvent)
+    : normalizedEvents
   const memberMap = new Map((members || []).map((member) => [member.id, member]))
+  const survivalScope = options.scope || 'all'
+  const survivalPeriods =
+    survivalScope === 'all'
+      ? ['first_half', 'second_half']
+      : ['first_half', 'second_half'].includes(survivalScope)
+        ? [survivalScope]
+        : []
 
   return (members || []).map((member) => {
     const playerEvents = normalizedEvents.filter(
@@ -562,6 +588,12 @@ export function buildPlayerStats(events, members) {
     ).length
     const passErrorResponsibility =
       passerCauseErrors + receiverCauseErrors + bothCausePassErrors
+    const survival = buildPlayerSurvivalStats(
+      member,
+      allEvents,
+      options.match,
+      survivalPeriods,
+    )
     return {
       id: member.id,
       name: memberMap.get(member.id)?.name ?? member.name,
@@ -592,8 +624,89 @@ export function buildPlayerStats(events, members) {
       lastPassHitRate:
         lastPasses > 0 ? Math.round((lastPassHits / lastPasses) * 100) : null,
       lineCrosses,
+      survivalSeconds: survival.seconds,
+      survivalRate: survival.rate,
+      survivalPlayed: survival.played,
     }
   })
+}
+
+function buildPlayerSurvivalStats(member, events, match, periods) {
+  const periodStats = periods
+    .filter((period) => isMemberInPeriod(member, match, period))
+    .map((period) => {
+      const periodEvents = events.filter((event) => event.period === period)
+      const duration = getActualPeriodSeconds(match, period, periodEvents)
+      const hitEvent = periodEvents
+        .filter((event) => isHitReceivedByMember(event, member))
+        .sort((a, b) => (a.elapsedTime ?? 0) - (b.elapsedTime ?? 0) || (a.timestamp ?? 0) - (b.timestamp ?? 0))[0]
+      const survivalSeconds = Math.min(
+        duration,
+        Math.max(0, hitEvent ? Math.round(Number(hitEvent.elapsedTime) || 0) : duration),
+      )
+
+      return { duration, survivalSeconds }
+    })
+
+  if (periodStats.length === 0) {
+    return { played: false, seconds: null, rate: null }
+  }
+
+  const totalSurvival = periodStats.reduce((sum, period) => sum + period.survivalSeconds, 0)
+  const totalDuration = periodStats.reduce((sum, period) => sum + period.duration, 0)
+  const averageSurvival = Math.round(totalSurvival / periodStats.length)
+
+  return {
+    played: true,
+    seconds: averageSurvival,
+    rate: totalDuration > 0 ? Math.round((totalSurvival / totalDuration) * 100) : null,
+  }
+}
+
+function isMemberInPeriod(member, match, period) {
+  if (!match) return true
+  const periodMembers =
+    period === 'first_half' ? match.firstHalfMembers : match.secondHalfMembers
+  return periodMembers.some(
+    (periodMember) =>
+      periodMember.id === member.id ||
+      (!Number.isInteger(periodMember.id) && periodMember.name === member.name),
+  )
+}
+
+function isHitReceivedByMember(event, member) {
+  if (event.eventType !== 'hit_received') return false
+  if (Number.isInteger(event.playerId) && Number.isInteger(member.id)) {
+    return event.playerId === member.id
+  }
+  return Boolean(event.playerNameSnapshot && event.playerNameSnapshot === member.name)
+}
+
+export function getActualPeriodSeconds(match, period, events = []) {
+  const storedDuration = normalizePeriodDurations(match?.periodDurations)[period]
+  if (storedDuration !== null) {
+    return storedDuration
+  }
+
+  const periodEvents = events.filter((event) => event.period === period)
+  const maxElapsed = periodEvents.reduce(
+    (max, event) => Math.max(max, Math.round(Number(event.elapsedTime) || 0)),
+    0,
+  )
+
+  if (match?.period === period && !match.timerRunning && Number.isFinite(Number(match.remainingTime))) {
+    const elapsedFromTimer = Math.max(
+      0,
+      MATCH_SECONDS - Math.max(0, Math.round(Number(match.remainingTime))),
+    )
+    return Math.max(elapsedFromTimer, maxElapsed)
+  }
+
+  if (maxElapsed > MATCH_SECONDS) {
+    return maxElapsed
+  }
+
+  return MATCH_SECONDS
 }
 
 export function buildPlayerSummary(events, members = []) {
