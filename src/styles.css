@@ -1187,11 +1187,17 @@ input:focus {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
 }
 
+.stat-line span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .stat-line strong {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .stat-line.caution strong {

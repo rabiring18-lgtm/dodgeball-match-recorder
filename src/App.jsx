@@ -3074,33 +3074,26 @@ function PlayerStatsView({ events, members, compact = false }) {
         <article className="player-stat-card" key={player.id}>
           <h2>{player.name}</h2>
           <div className="mini-stat-grid">
-            <StatLine label="アタック" value={player.attacks} />
+            <StatLine label="アタック数" value={player.attacks} />
             <StatLine label="アタック成功" value={player.hits} rank={rankMaps.hits.get(player.id)} />
-            <StatLine label="成功率" value={player.attackRate === null ? '—' : `${player.attackRate}%`} />
+            <StatLine label="アタック成功率" value={player.attackRate === null ? '—' : `${player.attackRate}%`} />
             {!compact && <StatLine label="アタック失敗" value={player.misses} />}
-            {!compact && <StatLine label="単発" value={player.singleAttacks} />}
-            {!compact && <StatLine label="攻撃権継続" value={player.continuedAttacks} />}
+            {!compact && <StatLine label="単発攻撃" value={player.singleAttacks} />}
+            {!compact && <StatLine label="継続攻撃" value={player.continuedAttacks} />}
             {!compact && (
               <StatLine
-                label="継続率"
+                label="攻撃継続率"
                 value={player.continuationRate === null ? '—' : `${player.continuationRate}%`}
               />
             )}
             <StatLine label="キャッチ" value={player.catches} rank={rankMaps.catches.get(player.id)} />
-            <StatLine label="当てられた" value={player.hitReceived} />
-            {!compact && <StatLine label="キャッチ率" value={player.catchRate === null ? '—' : `${player.catchRate}%`} />}
-            <StatLine
-              label="パスミス"
-              value={compact ? player.passErrorResponsibility : player.passErrors}
-              tone={(compact ? player.passErrorResponsibility : player.passErrors) > 0 ? 'caution' : undefined}
-            />
-            {!compact && <StatLine label="投げ手パスミス" value={player.passErrorAsPasser} />}
-            {!compact && <StatLine label="受け手パスミス" value={player.passErrorAsReceiver} />}
-            {!compact && <StatLine label="投げ手原因" value={player.passerCauseErrors} />}
-            {!compact && <StatLine label="受け手原因" value={player.receiverCauseErrors} />}
-            {!compact && <StatLine label="両方原因関与" value={player.bothCausePassErrors} />}
-            <StatLine label="パスカットされた" value={player.passIntercepted} tone={player.passIntercepted > 0 ? 'caution' : undefined} />
-            {!compact && <StatLine label="パスカット" value={player.passInterceptions} />}
+            <StatLine label="被ヒット" value={player.hitReceived} />
+            {!compact && <StatLine label="キャッチ成功率" value={player.catchRate === null ? '—' : `${player.catchRate}%`} />}
+            <StatLine label="パスミス・投げ手" value={player.passerCauseErrors} tone={player.passerCauseErrors > 0 ? 'caution' : undefined} />
+            <StatLine label="パスミス・受け手" value={player.receiverCauseErrors} tone={player.receiverCauseErrors > 0 ? 'caution' : undefined} />
+            <StatLine label="パスミス・両方" value={player.bothCausePassErrors} tone={player.bothCausePassErrors > 0 ? 'caution' : undefined} />
+            <StatLine label="被パスカット" value={player.passIntercepted} tone={player.passIntercepted > 0 ? 'caution' : undefined} />
+            {!compact && <StatLine label="パスカット成功" value={player.passInterceptions} />}
             <StatLine label="ラインクロス" value={player.lineCrosses} tone={player.lineCrosses > 0 ? 'caution' : undefined} />
             <StatLine label="ラストパス" value={player.lastPasses} />
             <StatLine label="ラストパス成功" value={player.lastPassHits} rank={rankMaps.lastPassHits.get(player.id)} />
