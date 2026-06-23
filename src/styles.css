@@ -863,8 +863,13 @@ input:focus {
 
 .match-goal-card {
   display: grid;
-  grid-template-columns: minmax(250px, 0.85fr) minmax(0, 1.15fr);
-  gap: 14px;
+  justify-items: center;
+  gap: 8px;
+  max-width: 860px;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 16px;
+  text-align: center;
 }
 
 .match-goal-card h2,
@@ -873,15 +878,51 @@ input:focus {
   margin: 0 0 8px;
 }
 
+.match-goal-card h2 {
+  margin-bottom: 2px;
+}
+
+.halftime-scoreboard {
+  display: grid;
+  grid-template-columns: minmax(74px, auto) auto auto auto minmax(56px, auto);
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 18px);
+  width: min(100%, 640px);
+  padding: 8px 10px;
+}
+
+.halftime-scoreboard span {
+  color: #cbd5e1;
+  font-size: clamp(1rem, 2.6vw, 1.5rem);
+  font-weight: 950;
+}
+
+.halftime-scoreboard strong {
+  color: #ffffff;
+  font-size: clamp(3.6rem, 13vw, 7rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  line-height: 0.9;
+}
+
+.halftime-scoreboard em {
+  color: #94a3b8;
+  font-size: clamp(2rem, 7vw, 4rem);
+  font-style: normal;
+  font-weight: 950;
+}
+
 .goal-status {
   display: block;
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .goal-guidance {
   display: grid;
   align-content: center;
-  gap: 7px;
+  justify-items: center;
+  gap: 6px;
 }
 
 .goal-main {

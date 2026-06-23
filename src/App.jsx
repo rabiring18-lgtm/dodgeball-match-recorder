@@ -1832,20 +1832,29 @@ function HalftimeGoalPanel({ match }) {
 
   return (
     <section className="match-goal-card halftime-goal">
-      <div>
-        <p className="eyebrow">HALFTIME TARGET</p>
-        <h2>前半結果</h2>
-        <RosterScoreLine label="" score={firstScore} />
-        {guidance.status && <strong className="goal-status">{guidance.status}</strong>}
-      </div>
+      <p className="eyebrow">HALFTIME TARGET</p>
+      <h2>前半結果</h2>
+      <HalftimeScoreboard score={firstScore} />
+      <strong className="goal-status">{guidance.status}</strong>
       <div className="goal-guidance">
-        <h3>{guidance.heading}</h3>
         <p className="goal-main">{guidance.main}</p>
         {guidance.details.map((detail) => (
           <span key={detail}>{detail}</span>
         ))}
       </div>
     </section>
+  )
+}
+
+function HalftimeScoreboard({ score }) {
+  return (
+    <div className="halftime-scoreboard" aria-label="前半結果">
+      <span>ROCKS</span>
+      <strong>{score.rocks}</strong>
+      <em>－</em>
+      <strong>{score.opponent}</strong>
+      <span>相手</span>
+    </div>
   )
 }
 
@@ -2262,7 +2271,6 @@ function getHalftimeGuidance(firstScore) {
     const allowedLoss = firstDiff - 1
     return {
       status: `現在${firstDiff}人リード`,
-      heading: '後半の目安',
       main:
         allowedLoss > 0
           ? `後半は${allowedLoss}人差以内の負けなら勝利`
@@ -2278,15 +2286,13 @@ function getHalftimeGuidance(firstScore) {
     const neededWin = Math.abs(firstDiff) + 1
     return {
       status: `現在${Math.abs(firstDiff)}人ビハインド`,
-      heading: '後半の目標',
       main: `後半は${neededWin}人差以上で勝てば逆転`,
       details: [`${Math.abs(firstDiff)}人差で同点`],
     }
   }
 
   return {
-    status: '',
-    heading: '後半の目標',
+    status: '現在同点',
     main: '後半は1人差以上で勝てば勝利',
     details: [],
   }
