@@ -202,7 +202,7 @@ input:focus {
 
 .match-info-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 420px) minmax(150px, 220px);
+  grid-template-columns: minmax(260px, 1.7fr) minmax(130px, 0.8fr) minmax(150px, 0.8fr) minmax(140px, 0.7fr);
   align-items: end;
   gap: 14px;
 }
@@ -1374,6 +1374,31 @@ input:focus {
   font-weight: 800;
 }
 
+.match-info-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.match-info-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(140px, 0.7fr);
+  gap: 12px;
+}
+
+.match-info-possession {
+  margin-top: 0;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.modal-actions button {
+  min-height: 56px;
+}
+
 .target-player-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2233,7 +2258,7 @@ input:focus {
   }
 
   .match-info-grid {
-    grid-template-columns: minmax(240px, 360px) minmax(150px, 220px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
 }
@@ -2244,6 +2269,7 @@ input:focus {
   }
 
   .match-info-grid,
+  .match-info-editor-grid,
   .members-layout,
   .waiting-members-layout {
     grid-template-columns: 1fr;

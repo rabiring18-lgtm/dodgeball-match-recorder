@@ -8,12 +8,17 @@ import {
   buildPlayerStats,
   buildPlayerSummary,
   buildStats,
+  createDefaultMatchSetup,
   createEmptyPlayers,
   createEvent,
+  createMatchDateTimeValue,
   createMatchFromSetup,
   defaultMatchSetup,
   eventLabels,
   foulEvents,
+  getMatchDateTimeParts,
+  getMatchDisplayDateTime,
+  getMatchFileDate,
   formatTime,
   getBackupFileName,
   getCurrentRemaining,
@@ -22,6 +27,7 @@ import {
   getPlayersByIds,
   isRegisteredPlayer,
   normalizeMatch,
+  normalizeMatchDateTime,
   normalizeMatchSetup,
   normalizeOpponentHistory,
   normalizePlayers,
@@ -126,6 +132,7 @@ function App() {
   const canStartPreparation =
     matchSetup.opponentName.trim() !== '' &&
     matchSetup.possession !== '' &&
+    createMatchDateTimeValue(matchSetup.matchDate, matchSetup.matchTime) !== '' &&
     matchSetup.firstHalfMemberIds.length > 0 &&
     matchSetup.firstHalfMemberIds.length <= MEMBER_LIMIT &&
     matchSetup.secondHalfMemberIds.length > 0 &&
@@ -859,9 +866,43 @@ function App() {
     setScreen('result')
   }
 
+  function updateResultMatchInfo(updates) {
+    const currentMatch = displayedResultMatch
+    if (!currentMatch) return false
+    const matchDateTime = normalizeMatchDateTime(updates.matchDateTime)
+    const opponentName = String(updates.opponentName ?? '').trim()
+    const firstPossession = updates.firstPossession === 'opponent' ? 'opponent' : 'rocks'
+
+    if (!matchDateTime || !opponentName) return false
+
+    const updatedMatch = {
+      ...currentMatch,
+      opponentName,
+      matchDateTime,
+      firstPossession,
+      updatedAt: Date.now(),
+    }
+
+    setSavedMatches((current) =>
+      current.map((match) => (match.matchId === updatedMatch.matchId ? updatedMatch : match)),
+    )
+    setResultMatch((current) =>
+      current?.matchId === updatedMatch.matchId ? updatedMatch : current,
+    )
+    setSelectedSavedMatch((current) =>
+      current?.matchId === updatedMatch.matchId ? updatedMatch : current,
+    )
+    setOpponentHistory((current) => [
+      opponentName,
+      ...current.filter((name) => name !== opponentName),
+    ])
+    showNotice('試合情報を更新しました')
+    return true
+  }
+
   function newMatch() {
     if (!window.confirm('新しい試合を設定しますか？')) return
-    setMatchSetup(defaultMatchSetup)
+    setMatchSetup(createDefaultMatchSetup())
     setActiveMatch(null)
     setResultMatch(null)
     setSelectedSavedMatch(null)
@@ -1274,6 +1315,7 @@ function App() {
           onEditEvent={openEventEditor}
           onDeleteEvent={deleteEvent}
           onExportPdf={exportResultPdf}
+          onUpdateMatchInfo={updateResultMatchInfo}
           onNewMatch={newMatch}
           onOpenData={() => setIsDataPanelOpen(true)}
         />
@@ -1416,6 +1458,24 @@ function SetupScreen({
             <span>試合時間</span>
             <strong>5分</strong>
           </div>
+          <label className="field">
+            <span>試合日</span>
+            <input
+              required
+              type="date"
+              value={matchSetup.matchDate}
+              onChange={(event) => onMatchSetupChange('matchDate', event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>開始時刻</span>
+            <input
+              required
+              type="time"
+              value={matchSetup.matchTime}
+              onChange={(event) => onMatchSetupChange('matchTime', event.target.value)}
+            />
+          </label>
         </div>
         <div className="choice-group" aria-label="ROCKSの先攻または後攻">
           {[
@@ -2356,10 +2416,12 @@ function ResultScreen({
   onEditEvent,
   onDeleteEvent,
   onExportPdf,
+  onUpdateMatchInfo,
   onNewMatch,
   onOpenData,
 }) {
   const members = getMembersForScope(match, selectedScope)
+  const [isMatchInfoEditorOpen, setIsMatchInfoEditorOpen] = useState(false)
 
   return (
     <main className="app-shell result-shell">
@@ -2384,6 +2446,13 @@ function ResultScreen({
           <button className="secondary-button" type="button" onClick={onOpenData}>
             データ管理
           </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setIsMatchInfoEditorOpen(true)}
+          >
+            試合情報を編集
+          </button>
           <div className="status-panel">
             <span>{match.firstPossession === 'rocks' ? '先攻' : '後攻'}</span>
             <strong>記録完了</strong>
@@ -2391,10 +2460,20 @@ function ResultScreen({
         </div>
       </header>
       <div className="result-meta">
-        <span>日時: {new Date(match.createdAt).toLocaleString()}</span>
+        <span>日時: {getMatchDisplayDateTime(match)}</span>
         <span>前半メンバー: {match.firstHalfMembers.map((member) => member.name).join('、')}</span>
         <span>後半メンバー: {match.secondHalfMembers.map((member) => member.name).join('、')}</span>
       </div>
+      {isMatchInfoEditorOpen && (
+        <MatchInfoEditor
+          match={match}
+          onCancel={() => setIsMatchInfoEditorOpen(false)}
+          onSave={(updates) => {
+            const saved = onUpdateMatchInfo(updates)
+            if (saved) setIsMatchInfoEditorOpen(false)
+          }}
+        />
+      )}
       <MatchRosterResult match={match} />
       {isRecordListOpen && (
         <ResultRecordReview
@@ -2429,6 +2508,86 @@ function ResultScreen({
         </button>
       </div>
     </main>
+  )
+}
+
+function MatchInfoEditor({ match, onCancel, onSave }) {
+  const initialParts = getMatchDateTimeParts(match.matchDateTime, match.createdAt)
+  const [opponentName, setOpponentName] = useState(match.opponentName || '')
+  const [matchDate, setMatchDate] = useState(initialParts.matchDate)
+  const [matchTime, setMatchTime] = useState(initialParts.matchTime)
+  const [firstPossession, setFirstPossession] = useState(match.firstPossession)
+  const matchDateTime = createMatchDateTimeValue(matchDate, matchTime)
+  const canSave = opponentName.trim() !== '' && matchDateTime !== ''
+
+  return (
+    <div className="target-overlay" role="presentation">
+      <section className="target-modal match-info-editor" role="dialog" aria-modal="true">
+        <p className="eyebrow">MATCH INFO</p>
+        <h2>試合情報を編集</h2>
+        <div className="match-info-editor-grid">
+          <label className="field">
+            <span>対戦相手</span>
+            <input
+              value={opponentName}
+              onChange={(event) => setOpponentName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>試合日</span>
+            <input
+              required
+              type="date"
+              value={matchDate}
+              onChange={(event) => setMatchDate(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>開始時刻</span>
+            <input
+              required
+              type="time"
+              value={matchTime}
+              onChange={(event) => setMatchTime(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="choice-group match-info-possession" aria-label="ROCKSの先攻または後攻">
+          {[
+            ['rocks', '先攻'],
+            ['opponent', '後攻'],
+          ].map(([value, label]) => (
+            <button
+              className={firstPossession === value ? 'choice-button selected' : 'choice-button'}
+              key={value}
+              type="button"
+              onClick={() => setFirstPossession(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button
+            className="start-button"
+            type="button"
+            disabled={!canSave}
+            onClick={() =>
+              onSave({
+                opponentName,
+                matchDateTime,
+                firstPossession,
+              })
+            }
+          >
+            保存
+          </button>
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            キャンセル
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -2595,7 +2754,7 @@ function PdfReportHeader({ match }) {
       <dl>
         <div>
           <dt>試合日時</dt>
-          <dd>{new Date(match.createdAt).toLocaleString()}</dd>
+          <dd>{getMatchDisplayDateTime(match)}</dd>
         </div>
         <div>
           <dt>ROCKS</dt>
@@ -3624,11 +3783,7 @@ function formatSurvivalRate(rate, played) {
 
 function getPdfFileName(match) {
   const opponentName = sanitizeFilePart(match.opponentName || '対戦相手')
-  const date = new Date(match.createdAt)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `ROCKS_試合レポート_${opponentName}_${year}${month}${day}.pdf`
+  return `ROCKS_試合レポート_${opponentName}_${getMatchFileDate(match)}.pdf`
 }
 
 function sanitizeFilePart(value) {
@@ -3706,7 +3861,7 @@ function DataPanel({
             <div className="saved-match-row" key={match.matchId}>
               <div>
                 <strong>ROCKS vs {match.opponentName}</strong>
-                <span>{new Date(match.createdAt).toLocaleString()}</span>
+                <span>{getMatchDisplayDateTime(match)}</span>
               </div>
               <button type="button" onClick={() => onView(match)}>
                 閲覧

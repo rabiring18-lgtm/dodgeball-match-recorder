@@ -10,12 +10,99 @@ export const STORAGE_KEYS = {
   savedMatches: 'dodgeballMatchRecorder.savedMatches',
 }
 
-export const defaultMatchSetup = {
-  opponentName: '',
-  matchMinutes: '5',
-  possession: '',
-  firstHalfMemberIds: [],
-  secondHalfMemberIds: [],
+export const defaultMatchSetup = createDefaultMatchSetup()
+
+export function createDefaultMatchSetup(now = new Date()) {
+  return {
+    opponentName: '',
+    matchMinutes: '5',
+    possession: '',
+    matchDate: formatDateInputValue(now),
+    matchTime: formatTimeInputValue(now),
+    firstHalfMemberIds: [],
+    secondHalfMemberIds: [],
+  }
+}
+
+export function formatDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function formatTimeInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+export function createMatchDateTimeValue(matchDate, matchTime) {
+  const date = String(matchDate ?? '').trim()
+  const time = String(matchTime ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    return ''
+  }
+
+  const parsed = new Date(`${date}T${time}:00`)
+  if (Number.isNaN(parsed.getTime())) return ''
+  if (
+    formatDateInputValue(parsed) !== date ||
+    formatTimeInputValue(parsed) !== time
+  ) {
+    return ''
+  }
+  return `${date}T${time}`
+}
+
+export function normalizeMatchDateTime(value) {
+  const rawValue = String(value ?? '').trim()
+  if (!rawValue) return ''
+  const normalizedValue = rawValue.length === 16 ? rawValue : rawValue.slice(0, 16)
+  const parsed = new Date(normalizedValue)
+  return Number.isNaN(parsed.getTime()) ? '' : normalizedValue
+}
+
+export function getMatchDateTimeParts(matchDateTime, fallbackValue = Date.now()) {
+  const normalized = normalizeMatchDateTime(matchDateTime)
+  const source = normalized || fallbackValue
+  const date = new Date(source)
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date
+
+  return {
+    matchDate: formatDateInputValue(safeDate),
+    matchTime: formatTimeInputValue(safeDate),
+  }
+}
+
+export function getMatchDisplayDateTime(match, options = {}) {
+  const fallbackValue = match?.createdAt || match?.completedAt || Date.now()
+  const normalized = normalizeMatchDateTime(match?.matchDateTime)
+  const date = new Date(normalized || fallbackValue)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    ...(options.dateStyle ? { dateStyle: options.dateStyle } : {}),
+  }).format(date)
+}
+
+export function getMatchFileDate(match) {
+  const fallbackValue = match?.createdAt || match?.completedAt || Date.now()
+  const normalized = normalizeMatchDateTime(match?.matchDateTime)
+  const date = new Date(normalized || fallbackValue)
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date
+
+  return formatDateInputValue(safeDate).replaceAll('-', '')
 }
 
 export const playEvents = {
@@ -172,14 +259,23 @@ export function normalizeIdList(value) {
 
 export function normalizeMatchSetup(value) {
   const storedSetup = value && typeof value === 'object' ? value : {}
+  const fallbackSetup = createDefaultMatchSetup()
 
   return {
-    ...defaultMatchSetup,
+    ...fallbackSetup,
     opponentName: String(storedSetup.opponentName ?? ''),
     matchMinutes: '5',
     possession: ['first', 'second'].includes(storedSetup.possession)
       ? storedSetup.possession
       : '',
+    matchDate:
+      /^\d{4}-\d{2}-\d{2}$/.test(String(storedSetup.matchDate ?? ''))
+        ? String(storedSetup.matchDate)
+        : fallbackSetup.matchDate,
+    matchTime:
+      /^\d{2}:\d{2}$/.test(String(storedSetup.matchTime ?? ''))
+        ? String(storedSetup.matchTime)
+        : fallbackSetup.matchTime,
     firstHalfMemberIds: normalizeIdList(storedSetup.firstHalfMemberIds),
     secondHalfMemberIds: normalizeIdList(storedSetup.secondHalfMemberIds),
   }
@@ -287,8 +383,9 @@ export function normalizeMatch(match) {
 
   const period = match.period === 'second_half' ? 'second_half' : 'first_half'
   const firstPossession = match.firstPossession === 'opponent' ? 'opponent' : 'rocks'
+  const matchDateTime = normalizeMatchDateTime(match.matchDateTime)
 
-  return {
+  const normalizedMatch = {
     ...match,
     matchId: String(match.matchId),
     status: String(match.status ?? 'waiting'),
@@ -308,6 +405,8 @@ export function normalizeMatch(match) {
     updatedAt: Number(match.updatedAt) || Date.now(),
     completedAt: match.completedAt ? Number(match.completedAt) : null,
   }
+
+  return matchDateTime ? { ...normalizedMatch, matchDateTime } : normalizedMatch
 }
 
 export function normalizeSavedMatches(value) {
@@ -354,6 +453,7 @@ export function calculateElapsed(remainingTime) {
 export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMembers) {
   const now = Date.now()
   const firstPossession = matchSetup.possession === 'first' ? 'rocks' : 'opponent'
+  const matchDateTime = createMatchDateTimeValue(matchSetup.matchDate, matchSetup.matchTime)
 
   return {
     matchId: createId('match'),
@@ -361,6 +461,7 @@ export function createMatchFromSetup(matchSetup, firstHalfMembers, secondHalfMem
     screen: 'game',
     period: 'first_half',
     opponentName: matchSetup.opponentName.trim(),
+    matchDateTime,
     firstPossession,
     currentPossession: firstPossession,
     firstHalfMembers,
