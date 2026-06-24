@@ -92,6 +92,11 @@ function App() {
   const [selectedResultRecordPeriod, setSelectedResultRecordPeriod] = useState('first_half')
   const [isPdfRendering, setIsPdfRendering] = useState(false)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false)
+  const [isOffline, setIsOffline] = useState(() =>
+    typeof navigator !== 'undefined' ? !navigator.onLine : false,
+  )
+  const [pwaReadyNotice, setPwaReadyNotice] = useState(false)
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false)
   const [analysisMode, setAnalysisMode] = useState('team')
   const [selectedSavedMatch, setSelectedSavedMatch] = useState(null)
   const [targetPicker, setTargetPicker] = useState(null)
@@ -104,6 +109,7 @@ function App() {
   const saveTimerRef = useRef(null)
   const importInputRef = useRef(null)
   const pdfReportRef = useRef(null)
+  const pwaReadyTimerRef = useRef(null)
   const didSaveOnceRef = useRef({
     players: false,
     matchSetup: false,
@@ -254,6 +260,30 @@ function App() {
     return () => {
       if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+      if (pwaReadyTimerRef.current) window.clearTimeout(pwaReadyTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setIsOffline(!navigator.onLine)
+    const handlePwaReady = () => {
+      setPwaReadyNotice(true)
+      if (pwaReadyTimerRef.current) window.clearTimeout(pwaReadyTimerRef.current)
+      pwaReadyTimerRef.current = window.setTimeout(() => setPwaReadyNotice(false), 3200)
+    }
+    const handlePwaUpdate = () => setPwaUpdateAvailable(true)
+
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    window.addEventListener('rocks-pwa-ready', handlePwaReady)
+    window.addEventListener('rocks-pwa-update', handlePwaUpdate)
+    updateOnlineStatus()
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+      window.removeEventListener('rocks-pwa-ready', handlePwaReady)
+      window.removeEventListener('rocks-pwa-update', handlePwaUpdate)
     }
   }, [])
 
@@ -272,6 +302,18 @@ function App() {
     setSaveNotice(message)
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
     saveTimerRef.current = window.setTimeout(() => setSaveNotice(''), 1000)
+  }
+
+  function applyPwaUpdate() {
+    if (
+      activeMatch &&
+      activeMatch.status !== 'completed' &&
+      !window.confirm('試合の記録中です。保存状態を確認してから更新してください。更新しますか？')
+    ) {
+      return
+    }
+
+    window.dispatchEvent(new CustomEvent('rocks-pwa-apply-update'))
   }
 
   function updatePlayer(playerId, value) {
@@ -1149,28 +1191,48 @@ function App() {
       onDeleteAll={deleteAllSavedMatches}
     />
   )
+  const appStatus = (
+    <>
+      {isOffline && <div className="offline-badge">オフラインで使用中</div>}
+      {pwaReadyNotice && <div className="pwa-ready-badge">オフラインでも使用できます</div>}
+      {pwaUpdateAvailable && (
+        <div className="pwa-update-banner">
+          <span>新しいバージョンがあります</span>
+          <button type="button" onClick={applyPwaUpdate}>
+            更新する
+          </button>
+          <button type="button" onClick={() => setPwaUpdateAvailable(false)}>
+            あとで
+          </button>
+        </div>
+      )}
+    </>
+  )
 
   if (restoreCandidate) {
     return (
-      <main className="app-shell">
-        <section className="restore-card">
-          <p className="eyebrow">RESTORE</p>
-          <h1>記録途中の試合があります</h1>
-          <p>ROCKS vs {restoreCandidate.opponentName}</p>
-          <strong>
-            {restoreCandidate.period === 'first_half' ? '前半' : '後半'}・残り
-            {formatTime(getCurrentRemaining(restoreCandidate))}
-          </strong>
-          <div className="restore-actions">
-            <button className="start-button" type="button" onClick={resumeActiveMatch}>
-              記録を再開
-            </button>
-            <button className="secondary-button" type="button" onClick={discardActiveMatch}>
-              この記録を破棄
-            </button>
-          </div>
-        </section>
-      </main>
+      <>
+        <main className="app-shell">
+          <section className="restore-card">
+            <p className="eyebrow">RESTORE</p>
+            <h1>記録途中の試合があります</h1>
+            <p>ROCKS vs {restoreCandidate.opponentName}</p>
+            <strong>
+              {restoreCandidate.period === 'first_half' ? '前半' : '後半'}・残り
+              {formatTime(getCurrentRemaining(restoreCandidate))}
+            </strong>
+            <div className="restore-actions">
+              <button className="start-button" type="button" onClick={resumeActiveMatch}>
+                記録を再開
+              </button>
+              <button className="secondary-button" type="button" onClick={discardActiveMatch}>
+                この記録を破棄
+              </button>
+            </div>
+          </section>
+        </main>
+        {appStatus}
+      </>
     )
   }
 
@@ -1188,6 +1250,7 @@ function App() {
         {notice && <div className="top-notice">{notice}</div>}
         {saveNotice && <div className="save-toast">{saveNotice}</div>}
         {sharedPanel}
+        {appStatus}
       </>
     )
   }
@@ -1272,6 +1335,7 @@ function App() {
         {notice && <div className="top-notice">{notice}</div>}
         {saveNotice && <div className="save-toast">{saveNotice}</div>}
         {sharedPanel}
+        {appStatus}
       </>
     )
   }
@@ -1294,6 +1358,7 @@ function App() {
         {notice && <div className="top-notice">{notice}</div>}
         {saveNotice && <div className="save-toast">{saveNotice}</div>}
         {sharedPanel}
+        {appStatus}
       </>
     )
   }
@@ -1338,6 +1403,7 @@ function App() {
         {notice && <div className="top-notice">{notice}</div>}
         {saveNotice && <div className="save-toast">{saveNotice}</div>}
         {sharedPanel}
+        {appStatus}
       </>
     )
   }
@@ -1364,6 +1430,7 @@ function App() {
       {notice && <div className="top-notice">{notice}</div>}
       {saveNotice && <div className="save-toast">{saveNotice}</div>}
       {sharedPanel}
+      {appStatus}
     </>
   )
 }
