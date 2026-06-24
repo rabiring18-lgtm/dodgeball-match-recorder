@@ -983,15 +983,21 @@ function App() {
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
 
+      const canvasScales = getPdfCanvasScales()
+
       for (let index = 0; index < pages.length; index += 1) {
-        const canvas = await html2canvas(pages[index], {
-          backgroundColor: '#f8fafc',
-          scale: Math.min(2, window.devicePixelRatio || 1),
-          useCORS: true,
-        })
-        const imageData = canvas.toDataURL('image/jpeg', 0.92)
-        if (index > 0) pdf.addPage()
-        pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, pageHeight)
+        let canvas = null
+        try {
+          canvas = await renderPdfPageCanvas(html2canvas, pages[index], canvasScales)
+          const imageData = canvas.toDataURL('image/jpeg', 0.98)
+          if (index > 0) pdf.addPage()
+          pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, pageHeight)
+        } finally {
+          if (canvas) {
+            canvas.width = 0
+            canvas.height = 0
+          }
+        }
       }
 
       const fileName = getPdfFileName(displayedResultMatch)
@@ -1012,6 +1018,27 @@ function App() {
         window.requestAnimationFrame(resolve)
       })
     })
+  }
+
+  function getPdfCanvasScales() {
+    return isAppleMobileDevice() ? [3, 2.5] : [3]
+  }
+
+  async function renderPdfPageCanvas(html2canvas, page, scales) {
+    let lastError = null
+    for (const scale of scales) {
+      try {
+        return await html2canvas(page, {
+          scale,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError
   }
 
   async function shareOrDownloadPdf(blob, fileName) {
@@ -2506,6 +2533,7 @@ function PdfReport({ match, reportRef }) {
   const secondEvents = getEventsForScope(match.events || [], 'second_half')
   const stats = buildStats(allEvents)
   const members = getMembersForScope(match, 'all')
+  const playerSummary = buildPlayerSummary(allEvents, members)
   const playerStats = buildPlayerStats(allEvents, members, { match, scope: 'all' })
     .filter((player) => player.survivalPlayed)
   const playerPages = chunkArray(playerStats, 4)
@@ -2537,6 +2565,7 @@ function PdfReport({ match, reportRef }) {
           />
         </div>
         <PdfTeamAnalysis stats={stats} />
+        <PdfPlayerSummary summary={playerSummary} />
       </section>
       {playerPages.map((players, index) => (
         <section className="pdf-page" key={`players-${index}`}>
@@ -2581,11 +2610,13 @@ function PdfScoreLine({ label, score, strong = false }) {
   return (
     <div className={strong ? 'pdf-score-line strong' : 'pdf-score-line'}>
       <span>{label}</span>
-      <b>ROCKS</b>
-      <strong>{score.rocks}</strong>
-      <em>－</em>
-      <strong>{score.opponent}</strong>
-      <b>相手</b>
+      <div className="pdf-score-row">
+        <b>ROCKS</b>
+        <strong className="pdf-score-rocks-count">{score.rocks}</strong>
+        <em>－</em>
+        <strong className="pdf-score-opponent-count">{score.opponent}</strong>
+        <b>相手</b>
+      </div>
     </div>
   )
 }
@@ -2661,6 +2692,58 @@ function PdfAnalysisCard({ title, rows }) {
         </div>
       ))}
     </article>
+  )
+}
+
+function PdfPlayerSummary({ summary }) {
+  const successKeys = new Set(summary.success.map((item) => item.key))
+  const items = [...summary.success, ...summary.review].map((item) =>
+    item.key === 'passIntercepted' ? { ...item, label: '被パスカット' } : item,
+  )
+
+  return (
+    <article className="pdf-card pdf-player-summary-card">
+      <div className="pdf-section-heading">
+        <p>PLAYER SUMMARY</p>
+        <h2>選手サマリー</h2>
+      </div>
+      <div className="pdf-player-summary-grid">
+        {items.map((item) => (
+          <PdfPlayerSummaryDepartment
+            item={item}
+            key={item.key}
+            showRank={successKeys.has(item.key)}
+          />
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function PdfPlayerSummaryDepartment({ item, showRank }) {
+  return (
+    <section
+      className={
+        showRank
+          ? 'pdf-player-summary-department success'
+          : 'pdf-player-summary-department review'
+      }
+    >
+      <h3>{item.label}</h3>
+      {item.players.length === 0 ? (
+        <span className="pdf-summary-empty">記録なし</span>
+      ) : (
+        <div className="pdf-summary-player-list">
+          {item.players.map((player, index) => (
+            <div className="pdf-summary-player" key={player.key}>
+              {showRank && <span>{getSummaryRank(item.players, index)}位</span>}
+              <strong>{player.name}</strong>
+              <b>{player.count}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

@@ -1771,7 +1771,7 @@ input:focus {
 .pdf-page {
   width: 794px;
   height: 1123px;
-  padding: 34px;
+  padding: 32px 34px;
   overflow: hidden;
   background:
     linear-gradient(90deg, rgba(14, 165, 233, 0.1), rgba(244, 63, 94, 0.06)),
@@ -1781,14 +1781,14 @@ input:focus {
 .pdf-overview-page {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
 }
 
 .pdf-report-header {
   display: grid;
   grid-template-columns: 1fr 240px;
   gap: 16px;
-  padding-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 4px solid #0ea5e9;
 }
 
@@ -1835,7 +1835,7 @@ input:focus {
 }
 
 .pdf-report-header dt {
-  color: #64748b;
+  color: #475569;
 }
 
 .pdf-report-header dd {
@@ -1847,7 +1847,7 @@ input:focus {
 .pdf-chart-grid,
 .pdf-analysis-grid {
   display: grid;
-  gap: 10px;
+  gap: 9px;
 }
 
 .pdf-score-summary {
@@ -1858,30 +1858,37 @@ input:focus {
 .pdf-score-line,
 .pdf-verdict,
 .pdf-card {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  border: 1.4px solid #cbd5e1;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
 }
 
 .pdf-score-line {
   display: grid;
-  grid-template-columns: auto 1fr auto auto auto 1fr;
-  gap: 5px;
-  align-items: center;
-  padding: 10px;
+  gap: 8px;
+  align-content: center;
+  padding: 9px 10px;
   font-weight: 900;
 }
 
 .pdf-score-line span {
-  grid-column: 1 / -1;
   color: #0369a1;
   font-size: 12px;
+}
+
+.pdf-score-row {
+  display: grid;
+  grid-template-columns: 44px 2ch 14px 2ch 32px;
+  align-items: baseline;
+  column-gap: 7px;
 }
 
 .pdf-score-line strong {
   color: #0f172a;
   font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .pdf-score-line b,
@@ -1889,6 +1896,18 @@ input:focus {
   color: #475569;
   font-size: 12px;
   font-style: normal;
+}
+
+.pdf-score-rocks-count {
+  text-align: right;
+}
+
+.pdf-score-opponent-count {
+  text-align: left;
+}
+
+.pdf-score-line em {
+  text-align: center;
 }
 
 .pdf-score-line.strong {
@@ -1923,7 +1942,7 @@ input:focus {
 
 .pdf-card {
   min-width: 0;
-  padding: 12px;
+  padding: 10px 12px;
 }
 
 .pdf-card h2,
@@ -1934,7 +1953,7 @@ input:focus {
 
 .pdf-card p {
   margin: 0;
-  color: #334155;
+  color: #1f2937;
   font-size: 13px;
   font-weight: 750;
   line-height: 1.55;
@@ -1950,13 +1969,13 @@ input:focus {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 5px 0;
-  border-top: 1px solid #e2e8f0;
+  padding: 4px 0;
+  border-top: 1.2px solid #dbe3ee;
 }
 
 .pdf-stat-row span {
   min-width: 0;
-  color: #475569;
+  color: #334155;
   font-size: 12px;
   font-weight: 800;
   overflow-wrap: anywhere;
@@ -2012,27 +2031,28 @@ input:focus {
 
 .pdf-trend-svg rect {
   fill: #ffffff;
-  stroke: #cbd5e1;
+  stroke: #94a3b8;
+  stroke-width: 1.2;
 }
 
 .pdf-grid-line {
-  stroke: #dbeafe;
-  stroke-width: 1;
+  stroke: #bfdbfe;
+  stroke-width: 1.25;
 }
 
 .pdf-grid-line.vertical {
-  stroke: #e2e8f0;
+  stroke: #cbd5e1;
 }
 
 .pdf-axis-label {
-  fill: #64748b;
-  font-size: 11px;
-  font-weight: 800;
+  fill: #334155;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .pdf-trend-line {
   fill: none;
-  stroke-width: 4;
+  stroke-width: 4.8;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
@@ -2043,6 +2063,120 @@ input:focus {
 
 .pdf-trend-line.opponent {
   stroke: #e11d48;
+}
+
+.pdf-player-summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-color: #7dd3fc;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.pdf-section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.pdf-section-heading p {
+  margin: 0;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.pdf-section-heading h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.pdf-player-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.pdf-player-summary-department {
+  min-width: 0;
+  min-height: 80px;
+  padding: 7px;
+  border: 1.3px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.pdf-player-summary-department.success {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.pdf-player-summary-department.review {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+.pdf-player-summary-department h3 {
+  margin: 0 0 5px;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pdf-summary-player-list {
+  display: grid;
+  gap: 4px;
+}
+
+.pdf-summary-player {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 5px;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.pdf-player-summary-department.review .pdf-summary-player {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-color: rgba(249, 115, 22, 0.28);
+}
+
+.pdf-summary-player span {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.pdf-summary-player strong {
+  min-width: 0;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.pdf-summary-player b {
+  color: #0f172a;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pdf-summary-empty {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .pdf-page-heading {
