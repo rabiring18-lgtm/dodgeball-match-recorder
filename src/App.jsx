@@ -1750,7 +1750,9 @@ function GameScreen({
   const disabled = !match.timerRunning || targetPickerOpen
   const rosterScore = getCurrentRosterScore(currentEvents, members.length)
   const rosterScoreTone =
-    match.period === 'second_half' ? getSecondHalfScoreTone(match, rosterScore) : ''
+    match.period === 'second_half'
+      ? getSecondHalfScoreTone(match, rosterScore)
+      : { rocks: '', opponent: '' }
 
   return (
     <main className="app-shell game-shell">
@@ -1775,14 +1777,11 @@ function GameScreen({
         <strong>{formatTime(match.remainingTime)}</strong>
       </section>
 
-      <section
-        className={['live-roster-score', rosterScoreTone].filter(Boolean).join(' ')}
-        aria-label="現在の内野人数"
-      >
+      <section className="live-roster-score" aria-label="現在の内野人数">
         <span>ROCKS</span>
-        <strong>{rosterScore.rocks}</strong>
-        <b>－</b>
-        <strong>{rosterScore.opponent}</strong>
+        <strong className={rosterScoreTone.rocks}>{rosterScore.rocks}</strong>
+        <b className="score-separator">－</b>
+        <strong className={rosterScoreTone.opponent}>{rosterScore.opponent}</strong>
         <span>相手</span>
       </section>
 
@@ -3545,9 +3544,9 @@ function getSecondHalfScoreTone(match, secondScore) {
   const totalScore = addRosterScores(getPeriodRosterScore(match, 'first_half'), secondScore)
   const diff = totalScore.rocks - totalScore.opponent
 
-  if (diff > 0) return 'total-leading'
-  if (diff < 0) return 'total-trailing'
-  return 'total-even'
+  if (diff > 0) return { rocks: 'score-leading', opponent: 'score-trailing' }
+  if (diff < 0) return { rocks: 'score-trailing', opponent: 'score-leading' }
+  return { rocks: 'score-even', opponent: 'score-even' }
 }
 
 function addRosterScores(firstScore, secondScore) {

@@ -855,23 +855,20 @@ input:focus {
 }
 
 .live-roster-score b {
-  color: #94a3b8;
+  color: #ffffff;
   font-size: clamp(1.8rem, 5vw, 3.2rem);
   line-height: 1;
 }
 
-.live-roster-score.total-leading strong,
-.live-roster-score.total-leading b {
+.live-roster-score strong.score-leading {
   color: #38bdf8;
 }
 
-.live-roster-score.total-even strong,
-.live-roster-score.total-even b {
+.live-roster-score strong.score-even {
   color: #fbbf24;
 }
 
-.live-roster-score.total-trailing strong,
-.live-roster-score.total-trailing b {
+.live-roster-score strong.score-trailing {
   color: #fb7185;
 }
 
