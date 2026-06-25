@@ -96,6 +96,20 @@ button:disabled {
   line-height: 1;
 }
 
+.result-shell .scoreboard-header > div:first-child {
+  min-width: max-content;
+}
+
+.result-shell .scoreboard-header h1 {
+  white-space: nowrap;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+}
+
+.result-shell .status-panel strong {
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
 .player-section,
 .setup-section,
 .action-bar,
