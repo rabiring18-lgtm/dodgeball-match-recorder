@@ -860,6 +860,21 @@ input:focus {
   line-height: 1;
 }
 
+.live-roster-score.total-leading strong,
+.live-roster-score.total-leading b {
+  color: #38bdf8;
+}
+
+.live-roster-score.total-even strong,
+.live-roster-score.total-even b {
+  color: #fbbf24;
+}
+
+.live-roster-score.total-trailing strong,
+.live-roster-score.total-trailing b {
+  color: #fb7185;
+}
+
 .second-half-outlook,
 .match-goal-card,
 .match-roster-result {

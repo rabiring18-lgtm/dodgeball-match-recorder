@@ -1749,6 +1749,8 @@ function GameScreen({
   const availablePlays = playEvents[match.currentPossession]
   const disabled = !match.timerRunning || targetPickerOpen
   const rosterScore = getCurrentRosterScore(currentEvents, members.length)
+  const rosterScoreTone =
+    match.period === 'second_half' ? getSecondHalfScoreTone(match, rosterScore) : ''
 
   return (
     <main className="app-shell game-shell">
@@ -1773,7 +1775,10 @@ function GameScreen({
         <strong>{formatTime(match.remainingTime)}</strong>
       </section>
 
-      <section className="live-roster-score" aria-label="現在の内野人数">
+      <section
+        className={['live-roster-score', rosterScoreTone].filter(Boolean).join(' ')}
+        aria-label="現在の内野人数"
+      >
         <span>ROCKS</span>
         <strong>{rosterScore.rocks}</strong>
         <b>－</b>
@@ -3534,6 +3539,15 @@ function getMatchRosterResult(match) {
     verdict: diff > 0 ? 'ROCKS勝利' : diff < 0 ? '相手勝利' : '同点',
     verdictTone: diff > 0 ? 'win' : diff < 0 ? 'loss' : 'draw',
   }
+}
+
+function getSecondHalfScoreTone(match, secondScore) {
+  const totalScore = addRosterScores(getPeriodRosterScore(match, 'first_half'), secondScore)
+  const diff = totalScore.rocks - totalScore.opponent
+
+  if (diff > 0) return 'total-leading'
+  if (diff < 0) return 'total-trailing'
+  return 'total-even'
 }
 
 function addRosterScores(firstScore, secondScore) {
